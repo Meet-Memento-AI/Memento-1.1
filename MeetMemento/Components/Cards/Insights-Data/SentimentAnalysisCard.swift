@@ -92,15 +92,24 @@ struct SentimentAnalysisCard: View {
             }
         }
         .padding(24)
-        .background(PrimaryScale.primary900)
-        .clipShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
+        .background(
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    PrimaryScale.primary700,
+                    PrimaryScale.primary800
+                ]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .stroke(
                     LinearGradient(
                         gradient: Gradient(colors: [
                             PrimaryScale.primary400,
-                            PrimaryScale.primary700
+                            PrimaryScale.primary800
                         ]),
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
