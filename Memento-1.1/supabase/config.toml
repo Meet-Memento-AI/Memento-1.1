@@ -1,0 +1,37 @@
+# Supabase Project Configuration
+# This file connects your local development environment to your Supabase project
+# Created manually - you'll run `supabase link` to populate project details
+
+# To link this to your project, run:
+# supabase link --project-ref YOUR_PROJECT_ID
+#
+# You can find your project ID in the Supabase Dashboard:
+# https://app.supabase.com/project/YOUR_PROJECT/settings/general
+
+# Project ID will be added here by `supabase link`
+# project_id = "your-project-id-here"
+
+[api]
+enabled = true
+# Port for local development
+port = 54321
+# Schemas to expose in your API
+schemas = ["public", "storage"]
+
+[functions]
+# Edge Functions configuration
+
+[functions.generate-follow-up]
+# Require JWT authentication for this function
+verify_jwt = true
+
+[functions.generate-insight]
+enabled = true
+verify_jwt = true
+import_map = "./functions/generate-insight/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/generate-insight/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/generate-insight/*.html" ]

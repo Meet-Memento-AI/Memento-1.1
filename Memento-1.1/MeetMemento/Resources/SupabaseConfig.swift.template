@@ -1,0 +1,24 @@
+//
+//  SupabaseConfig.swift.template
+//  MeetMemento
+//
+//  Template for Supabase configuration
+//
+//  SETUP INSTRUCTIONS:
+//  1. Copy this file to SupabaseConfig.swift
+//  2. Replace placeholders with your actual Supabase credentials
+//  3. Never commit SupabaseConfig.swift to version control
+//
+
+import Foundation
+
+struct SupabaseConfig {
+    // Supabase project credentials
+    // Get these from: https://app.supabase.com/project/_/settings/api
+
+    static let url = "YOUR_SUPABASE_URL"  // Example: "https://abc123xyz.supabase.co"
+    static let anonKey = "YOUR_SUPABASE_ANON_KEY"  // Your anon/public key (long JWT token)
+
+    // Optional: Add service role key for admin operations (keep this secure!)
+    // static let serviceRoleKey = "YOUR_SERVICE_ROLE_KEY"
+}
