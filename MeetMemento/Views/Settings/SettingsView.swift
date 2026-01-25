@@ -10,8 +10,15 @@ struct SettingsView: View {
     @Environment(\.typography) private var type
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var entryViewModel: EntryViewModel
+    @EnvironmentObject var authViewModel: AuthViewModel
 
     @State private var showDataUsageInfo = false
+    @State private var showSignOutConfirmation = false
+    @State private var isSigningOut = false
+    @State private var showDeleteAccountConfirmation = false
+    @State private var showDeleteAccountFinalConfirmation = false
+    @State private var isDeletingAccount = false
+    @State private var deleteAccountError = ""
 
     var body: some View {
         VStack(spacing: 0) {
@@ -32,6 +39,9 @@ struct SettingsView: View {
                     // Data & Privacy Section
                     dataPrivacySection
 
+                    // Account Section
+                    accountSection
+
                     Spacer(minLength: 40)
                 }
                 .padding(.horizontal, 20)
@@ -46,6 +56,45 @@ struct SettingsView: View {
                     .useTheme()
                     .useTypography()
             }
+        }
+        .confirmationDialog(
+            "Sign Out",
+            isPresented: $showSignOutConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Sign Out", role: .destructive) {
+                signOut()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Are you sure you want to sign out?")
+        }
+        .confirmationDialog(
+            "Delete Account?",
+            isPresented: $showDeleteAccountConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Continue", role: .destructive) {
+                showDeleteAccountFinalConfirmation = true
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This will permanently delete your account and all your journal entries. This action cannot be undone.")
+        }
+        .alert("Are you absolutely sure?", isPresented: $showDeleteAccountFinalConfirmation) {
+            Button("Delete My Account", role: .destructive) {
+                deleteAccount()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("All your data will be permanently deleted. This cannot be recovered.")
+        }
+        .alert("Error", isPresented: .constant(!deleteAccountError.isEmpty)) {
+            Button("OK") {
+                deleteAccountError = ""
+            }
+        } message: {
+            Text(deleteAccountError)
         }
     }
 
@@ -145,7 +194,84 @@ struct SettingsView: View {
     }
 
 
+    private var accountSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // Section header
+            Text("Account")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(theme.foreground)
+                .padding(.bottom, 4)
+
+            // Section content card
+            VStack(spacing: 0) {
+                NavigationLink(value: SettingsRoute.profile) {
+                    SettingsRow(
+                        icon: "person.circle.fill",
+                        title: "Profile",
+                        subtitle: "Edit your name",
+                        showChevron: true,
+                        action: nil
+                    )
+                }
+                .buttonStyle(PlainButtonStyle())
+
+                Divider()
+                    .background(theme.border)
+                    .padding(.horizontal, 16)
+
+                SettingsRow(
+                    icon: "rectangle.portrait.and.arrow.right",
+                    title: "Sign Out",
+                    subtitle: "Sign out of your account",
+                    showProgress: isSigningOut,
+                    action: {
+                        showSignOutConfirmation = true
+                    }
+                )
+
+                Divider()
+                    .background(theme.border)
+                    .padding(.horizontal, 16)
+
+                SettingsRow(
+                    icon: "trash.fill",
+                    title: "Delete Account",
+                    subtitle: "Permanently delete your account",
+                    isDestructive: true,
+                    showProgress: isDeletingAccount,
+                    action: {
+                        showDeleteAccountConfirmation = true
+                    }
+                )
+            }
+            .background(BaseColors.white)
+            .cornerRadius(16)
+        }
+    }
+
     // MARK: - Actions
+
+    private func signOut() {
+        isSigningOut = true
+        Task {
+            await authViewModel.signOut()
+        }
+    }
+
+    private func deleteAccount() {
+        isDeletingAccount = true
+        deleteAccountError = ""
+        Task {
+            do {
+                try await authViewModel.deleteAccount()
+            } catch {
+                await MainActor.run {
+                    isDeletingAccount = false
+                    deleteAccountError = "Failed to delete account. Please try again or contact support."
+                }
+            }
+        }
+    }
 }
 
 // MARK: - ShareSheet Helper
@@ -177,6 +303,7 @@ struct ShareSheet: UIViewControllerRepresentable {
     NavigationStack {
         SettingsView()
             .environmentObject(EntryViewModel())
+            .environmentObject(AuthViewModel())
             .useTheme()
             .useTypography()
     }

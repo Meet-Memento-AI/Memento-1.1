@@ -76,7 +76,7 @@ private struct HeaderLabel: View {
 
             Text("AI SUMMARY")
                 .font(type.labelBold) // Manrope Bold (caption/bold) per your tokens
-                .modifier(type.lineSpacingModifier(for: type.caption))
+                .modifier(type.lineSpacingModifier(for: type.sizeSM))
                 .textCase(.uppercase)
                 .kerning(0.6)
         }

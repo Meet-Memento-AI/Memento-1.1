@@ -22,7 +22,8 @@ import type {
   ErrorResponse,
   ErrorCode,
   OpenAIInsightResponse,
-  CachedInsight
+  CachedInsight,
+  Sentiment
 } from './types.ts';
 
 // ============================================================
@@ -154,6 +155,9 @@ serve(async (req) => {
         const response: InsightsResponse = {
           summary: cachedInsight.content.summary,
           description: cachedInsight.content.description,
+          descriptionExtended: cachedInsight.content.descriptionExtended,
+          sentiments: cachedInsight.content.sentiments || [],
+          keywords: cachedInsight.content.keywords || [],
           annotations: cachedInsight.content.annotations || [],
           themes: cachedInsight.content.themes,
           entriesAnalyzed: cachedInsight.entries_analyzed_count,
@@ -203,6 +207,9 @@ serve(async (req) => {
     const response: InsightsResponse = {
       summary: openaiResponse.summary,
       description: openaiResponse.description,
+      descriptionExtended: openaiResponse.descriptionExtended,
+      sentiments: openaiResponse.sentiments || [],
+      keywords: openaiResponse.keywords || [],
       annotations: openaiResponse.annotations,
       themes: openaiResponse.themes,
       entriesAnalyzed: entries.length,
@@ -406,6 +413,14 @@ Output structure:
 {
   "summary": "One sentence capturing main emotional themes (max 140 characters)",
   "description": "A 150-180 word paragraph describing the user's emotional landscape, recurring themes, and signs of growth or tension. Speak directly to the user. Focus on patterns and emotional arcs WITHOUT mentioning specific dates or entry titles - use time references like 'recently', 'this past week', 'early on', 'over time' instead.",
+  "descriptionExtended": "A 100-150 word paragraph providing additional context, actionable observations, or deeper patterns. This should complement the main description with practical insights about what the user might explore or consider.",
+  "sentiments": [
+    {"label": "Anxiety", "score": 45},
+    {"label": "Hope", "score": 30},
+    {"label": "Frustration", "score": 15},
+    {"label": "Acceptance", "score": 10}
+  ],
+  "keywords": ["work stress", "self-doubt", "growth", "boundaries", "acceptance", "change"],
   "annotations": [
     {
       "date": "YYYY-MM-DD",
@@ -436,6 +451,10 @@ Critical requirements:
    - Use YYYY-MM-DD format for the date
    - Write 2-3 sentences explaining what happened emotionally that day and its significance
    - Example: {"date": "2025-01-03", "summary": "This was the presentation that kept replaying in your mind. The performance anxiety peaked here, revealing patterns of self-criticism even when others saw success. It marked a turning point in recognizing the gap between internal experience and external reality."}
+8. Sentiments: Exactly 4 emotions that best capture the emotional tone. Scores MUST sum to exactly 100.
+   - Choose from emotions like: Anxiety, Hope, Frustration, Acceptance, Fear, Joy, Anticipation, Regret, Gratitude, Sadness, Excitement, Calm
+   - Score reflects how prominently each emotion appears across entries
+9. Keywords: 6-8 significant words or short phrases that capture key themes, concerns, or patterns from the entries. These should be specific to the content, not generic terms.
 
 Tone guidelines:
 - Write like a perceptive friend, not a therapist
@@ -514,6 +533,9 @@ ${JSON.stringify(entriesData)}`
   console.log('⏳ Step 5: Validating response structure...');
   console.log(`   - summary: ${parsedResponse.summary ? 'YES (' + parsedResponse.summary.length + ' chars)' : 'NO'}`);
   console.log(`   - description: ${parsedResponse.description ? 'YES (' + parsedResponse.description.length + ' chars)' : 'NO'}`);
+  console.log(`   - descriptionExtended: ${parsedResponse.descriptionExtended ? 'YES (' + parsedResponse.descriptionExtended.length + ' chars)' : 'NO'}`);
+  console.log(`   - sentiments: ${parsedResponse.sentiments ? 'YES (' + parsedResponse.sentiments.length + ' items)' : 'NO'}`);
+  console.log(`   - keywords: ${parsedResponse.keywords ? 'YES (' + parsedResponse.keywords.length + ' items)' : 'NO'}`);
   console.log(`   - annotations: ${parsedResponse.annotations ? 'YES (' + parsedResponse.annotations.length + ' items)' : 'NO'}`);
   console.log(`   - themes: ${parsedResponse.themes ? 'YES (' + parsedResponse.themes.length + ' items)' : 'NO'}`);
 
@@ -528,10 +550,20 @@ ${JSON.stringify(entriesData)}`
     throw new Error('Invalid response structure from AI');
   }
 
-  // Ensure annotations exists (make it optional with fallback)
+  // Ensure optional fields have fallbacks
   if (!parsedResponse.annotations) {
     console.warn('⚠️ No annotations in response, using empty array');
     parsedResponse.annotations = [];
+  }
+
+  if (!parsedResponse.sentiments) {
+    console.warn('⚠️ No sentiments in response, using empty array');
+    parsedResponse.sentiments = [];
+  }
+
+  if (!parsedResponse.keywords) {
+    console.warn('⚠️ No keywords in response, using empty array');
+    parsedResponse.keywords = [];
   }
 
   if (parsedResponse.themes.length < 4 || parsedResponse.themes.length > 5) {

@@ -89,15 +89,28 @@ fastlane/test_output
 
 iOSInjectionProject/
 
-# Supabase
+# Secrets & API Keys
 #
-# Environment variables (contains API keys)
-.env
-.env.local
-.env*.local
+# IMPORTANT: Never commit API keys, tokens, or credentials
+# These patterns catch common secret file naming conventions
+**/Secrets.swift
+**/secrets.swift
+**/APIKeys.swift
+**/apikeys.swift
+**/Credentials.swift
+**/credentials.swift
+**/Config.secret.swift
+**/*.secret.swift
 
-# Supabase config file (contains credentials)
+# Specific project secrets
+MeetMemento/Secrets.swift
 MeetMemento/Resources/SupabaseConfig.swift
+
+# Environment variables
+.env
+.env.*
+!.env.example
+*.local
 
 # Supabase local development
 supabase/.branches
@@ -105,6 +118,10 @@ supabase/.temp
 supabase/.db
 supabase/.edge-runtime
 supabase/types/
+
+# Supabase Edge Function secrets
+supabase/functions/.env
+supabase/.env
 
 # macOS
 .DS_Store

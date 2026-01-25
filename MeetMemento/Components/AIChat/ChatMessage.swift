@@ -8,13 +8,21 @@
 import Foundation
 
 /// Citation reference to a journal entry (for future use)
-public struct JournalCitation: Identifiable, Hashable {
+public struct JournalCitation: Identifiable, Hashable, Codable {
     public let id: UUID
     public let entryId: UUID
     public let entryTitle: String
     public let entryDate: Date
     public let excerpt: String
-    
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case entryId = "entry_id"
+        case entryTitle = "entry_title"
+        case entryDate = "entry_date"
+        case excerpt
+    }
+
     public init(
         id: UUID = UUID(),
         entryId: UUID,

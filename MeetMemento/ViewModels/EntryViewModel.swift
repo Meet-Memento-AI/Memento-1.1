@@ -1,12 +1,15 @@
+
 //
 //  EntryViewModel.swift
 //  MeetMemento
 //
-//  Minimal stub for managing journal entries (UI boilerplate).
+//  Manages journal entries using Supabase JournalService.
+//  Bridges local 'Entry' model with remote 'JournalEntry' model.
 //
 
 import Foundation
 import SwiftUI
+import Supabase
 
 @MainActor
 class EntryViewModel: ObservableObject {
@@ -26,40 +29,112 @@ class EntryViewModel: ObservableObject {
         }.sorted { $0.monthStart > $1.monthStart }
     }
 
-    // MARK: - CRUD Operations (in-memory only)
-
-    func loadEntriesIfNeeded() async {
-        // Stub: No-op
-    }
+    // MARK: - CRUD Operations
 
     func loadEntries() async {
         isLoading = true
-        // Stub: Simulate network delay
-        try? await Task.sleep(nanoseconds: 500_000_000)
+        errorMessage = nil
+        do {
+            let userEntries = try await JournalService.shared.fetchEntries()
+            self.entries = userEntries.map { mapToEntry($0) }
+        } catch {
+            print("Error loading entries: \(error)")
+            self.errorMessage = "Failed to load: \(error.localizedDescription)"
+        }
         isLoading = false
     }
-
+    
+    func loadEntriesIfNeeded() async {
+        await loadEntries()
+    }
+    
     func refreshEntries() async {
         await loadEntries()
     }
 
     func createEntry(title: String, text: String) {
-        let newEntry = Entry(title: title.isEmpty ? "Untitled" : title, text: text)
-        entries.insert(newEntry, at: 0)
+        Task {
+            isLoading = true
+            guard let userId = SupabaseService.shared.client.auth.currentUser?.id else {
+                print("Error: No authenticated user found.")
+                errorMessage = "You must be signed in to save entries."
+                isLoading = false
+                return
+            }
+
+            let newJournalEntry = JournalEntry(
+                userId: userId,
+                title: title.isEmpty ? "Untitled" : title,
+                content: text
+            )
+
+            do {
+                try await JournalService.shared.createEntry(newJournalEntry)
+                await loadEntries() // Refresh list
+            } catch {
+                print("Error creating entry: \(error)")
+                errorMessage = "Failed to save: \(error.localizedDescription)"
+            }
+            isLoading = false
+        }
     }
 
     func updateEntry(_ entry: Entry) {
-        if let i = entries.firstIndex(where: { $0.id == entry.id }) {
-            entries[i] = entry
+        Task {
+            isLoading = true
+             guard let userId = SupabaseService.shared.client.auth.currentUser?.id else {
+                errorMessage = "You must be signed in."
+                isLoading = false
+                return
+            }
+            
+            // Map back to JournalEntry
+            // Note: This relies on Entry.id matching JournalEntry.id which is true (UUID)
+            let updatedJournalEntry = JournalEntry(
+                id: entry.id,
+                userId: userId,
+                title: entry.title,
+                content: entry.text,
+                createdAt: entry.createdAt,
+                updatedAt: Date() // Touch updated at
+            )
+
+            do {
+                try await JournalService.shared.updateEntry(updatedJournalEntry)
+                // Optimistic update or refresh
+                if let i = entries.firstIndex(where: { $0.id == entry.id }) {
+                    entries[i] = entry
+                }
+            } catch {
+                print("Error updating entry: \(error)")
+                errorMessage = "Failed to update entry."
+            }
+            isLoading = false
         }
     }
 
     func deleteEntry(id: UUID) {
-        entries.removeAll { $0.id == id }
+        Task {
+            do {
+                try await JournalService.shared.deleteEntry(id: id)
+                entries.removeAll { $0.id == id }
+            } catch {
+                print("Error deleting entry: \(error)")
+                errorMessage = "Failed to delete entry."
+            }
+        }
     }
 
-    func loadMockEntries() {
-        entries = Entry.sampleEntries
+    // MARK: - Mappers
+
+    private func mapToEntry(_ je: JournalEntry) -> Entry {
+        return Entry(
+            id: je.id,
+            title: je.title,
+            text: je.content,
+            createdAt: je.createdAt,
+            updatedAt: je.updatedAt
+        )
     }
 }
 
@@ -77,4 +152,11 @@ struct MonthGroup: Identifiable {
     }
 
     var entryCount: Int { entries.count }
+}
+
+// MARK: - Mock Data Support
+extension EntryViewModel {
+    func loadMockEntries() {
+        self.entries = Entry.sampleEntries
+    }
 }

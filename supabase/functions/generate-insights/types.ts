@@ -59,13 +59,24 @@ export interface Theme {
 }
 
 /**
+ * A sentiment emotion with its percentage score
+ */
+export interface Sentiment {
+  label: string;         // Emotion name (e.g., "Anxiety", "Hope")
+  score: number;         // 0-100 percentage, all sentiments must sum to 100
+}
+
+/**
  * OpenAI's response structure (matches your prompt schema exactly)
  */
 export interface OpenAIInsightResponse {
-  summary: string;         // One sentence capturing main emotional themes (max 140 chars)
-  description: string;     // 150-180 word paragraph describing emotional landscape
-  annotations: Annotation[]; // 3-5 significant emotional moments with context
-  themes: Theme[];         // Exactly 4-5 themes (not fewer, not more)
+  summary: string;              // One sentence capturing main emotional themes (max 140 chars)
+  description: string;          // 150-180 word paragraph describing emotional landscape
+  descriptionExtended?: string; // Additional 100-150 word paragraph with actionable context
+  sentiments: Sentiment[];      // Exactly 4 emotions with scores summing to 100
+  keywords: string[];           // 6-8 significant words/phrases from entries
+  annotations: Annotation[];    // 3-5 significant emotional moments with context
+  themes: Theme[];              // Exactly 4-5 themes (not fewer, not more)
 }
 
 // ============================================================
@@ -94,6 +105,9 @@ export interface CachedInsight {
 export interface InsightsResponse {
   summary: string;              // From OpenAI response
   description: string;          // From OpenAI response
+  descriptionExtended?: string; // From OpenAI response - additional context paragraph
+  sentiments: Sentiment[];      // From OpenAI response - 4 emotions with percentages
+  keywords: string[];           // From OpenAI response - 6-8 significant terms
   annotations: Annotation[];    // From OpenAI response
   themes: Theme[];              // From OpenAI response
   entriesAnalyzed: number;      // How many entries were analyzed

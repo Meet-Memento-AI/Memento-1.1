@@ -16,6 +16,7 @@ public struct SignInBottomSheet: View {
     @State private var email: String = ""
     @State private var status: String = ""
     @State private var isLoading: Bool = false
+    @State private var navigateToOTP: Bool = false
 
     public var onSignInSuccess: (() -> Void)?
 
@@ -64,21 +65,28 @@ public struct SignInBottomSheet: View {
                         )
                     }
 
-                    // Continue button (stub)
+                    // Continue button
                     Button(action: {
-                        status = "Sign-in is disabled in this boilerplate."
+                        sendOTP()
                     }) {
-                        Text("Continue")
-                            .font(type.button)
-                            .fontWeight(.semibold)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 16)
-                            .background(theme.primary)
-                            .foregroundStyle(.white)
-                            .clipShape(RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous))
+                        HStack {
+                            if isLoading {
+                                ProgressView()
+                                    .tint(.white)
+                            } else {
+                                Text("Continue")
+                                    .font(type.button)
+                                    .fontWeight(.semibold)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(theme.primary)
+                        .foregroundStyle(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous))
                     }
-                    .disabled(email.isEmpty)
-                    .opacity(email.isEmpty ? 0.6 : 1.0)
+                    .disabled(email.isEmpty || isLoading)
+                    .opacity((email.isEmpty || isLoading) ? 0.6 : 1.0)
 
                     // Divider
                     HStack {
@@ -127,9 +135,46 @@ public struct SignInBottomSheet: View {
             }
             .background(theme.background)
             .navigationBarHidden(true)
+            .navigationDestination(isPresented: $navigateToOTP) {
+                OTPVerificationView(email: email, isSignUp: false)
+                    .environmentObject(authViewModel)
+            }
         }
         .presentationDetents([.height(540)])
         .presentationDragIndicator(.hidden)
+        .onChange(of: authViewModel.isAuthenticated) { _, isAuth in
+            if isAuth {
+                onSignInSuccess?()
+            }
+        }
+    }
+
+    // MARK: - Helpers
+
+    private func sendOTP() {
+        guard !email.isEmpty else { return }
+        guard email.contains("@") else {
+            status = "Please enter a valid email address"
+            return
+        }
+
+        isLoading = true
+        status = ""
+
+        Task {
+            do {
+                try await authViewModel.sendOTP(email: email)
+                await MainActor.run {
+                    isLoading = false
+                    navigateToOTP = true
+                }
+            } catch {
+                await MainActor.run {
+                    isLoading = false
+                    status = "Failed to send code. Please try again."
+                }
+            }
+        }
     }
 }
 

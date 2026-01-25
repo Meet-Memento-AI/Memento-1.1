@@ -2,6 +2,7 @@
 //  ContentView.swift
 //  MeetMemento
 //
+
 //  Main content view that displays the journal with top navigation tabs.
 //  - Journal tab: displays user's journal entries
 //  - Insights tab: displays AI-generated insights and themes
@@ -95,6 +96,7 @@ public struct ContentView: View {
                 case .main:
                     SettingsView()
                         .environmentObject(entryViewModel)
+                        .environmentObject(authViewModel)
                 case .profile:
                     ProfileSettingsView()
                 case .appearance:

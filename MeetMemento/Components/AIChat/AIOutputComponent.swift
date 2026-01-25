@@ -8,12 +8,19 @@
 import SwiftUI
 
 /// Structured AI output content
-public struct AIOutputContent: Hashable {
+public struct AIOutputContent: Hashable, Codable {
     public let heading1: String?
     public let heading2: String?
     public let body: String
     public let citations: [JournalCitation]?
-    
+
+    enum CodingKeys: String, CodingKey {
+        case heading1
+        case heading2
+        case body
+        case citations
+    }
+
     public init(
         heading1: String? = nil,
         heading2: String? = nil,

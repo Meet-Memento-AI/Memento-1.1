@@ -87,9 +87,9 @@ public struct WelcomeView: View {
 
                 // Authentication buttons
                 VStack(spacing: 16) {
-                    // Sign In button - bypasses to main app for testing
+                    // Sign In button
                     PrimaryButton(title: "Sign In") {
-                        authViewModel.bypassToMainApp()
+                        showSignInSheet = true
                     }
 
                     // Create Account button

@@ -1,59 +1,32 @@
 import SwiftUI
 
 // MARK: - Typography
-// Supports dynamic font weight control for headings (Lora SemiBold for major headings, 
+// Supports dynamic font weight control for headings (Lora SemiBold for major headings,
 // Sora SemiBold for others) and body text (Manrope Regular / Medium / Bold).
 
 public struct Typography {
-    // Spec sizes
-    public let micro: CGFloat
-    public let caption: CGFloat
-    public let bodyS: CGFloat
-    public let bodyL: CGFloat
-    public let titleXS: CGFloat
-    public let titleS: CGFloat
-    public let titleM: CGFloat
-    public let displayL: CGFloat
-    public let displayXL: CGFloat
 
-    public let weightNormal: Font.Weight
-    public let weightMedium: Font.Weight
+    // MARK: - Size Scale
+    public let sizeXS: CGFloat = 11    // micro
+    public let sizeSM: CGFloat = 13    // caption
+    public let sizeMD: CGFloat = 14    // body2
+    public let sizeLG: CGFloat = 16    // body1, h6, h5
+    public let sizeXL: CGFloat = 20    // h4
+    public let size2XL: CGFloat = 24   // h3
+    public let size3XL: CGFloat = 32   // h2
+    public let size4XL: CGFloat = 40   // h1
 
-    // MARK: - Font family names
+    // MARK: - Font Families
     private let primaryHeadingFont = "Lora-SemiBold"
     private let secondaryHeadingFont = "Sora-SemiBold"
-    private let bodyFontName = "Manrope-Medium"
+    private let bodyRegularFontName = "Manrope-Regular"
     private let bodyMediumFontName = "Manrope-Medium"
     private let bodyBoldFontName = "Manrope-Bold"
 
-    // Configurable heading weight
+    // MARK: - Configurable Properties
     public let headingWeight: Font.Weight
 
-    public init(
-        micro: CGFloat = 11,
-        caption: CGFloat = 13,
-        bodyS: CGFloat = 14,
-        bodyL: CGFloat = 16,
-        titleXS: CGFloat = 16,
-        titleS: CGFloat = 20,
-        titleM: CGFloat = 24,
-        displayL: CGFloat = 32,
-        displayXL: CGFloat = 40,
-        weightNormal: Font.Weight = .regular,
-        weightMedium: Font.Weight = .medium,
-        headingWeight: Font.Weight = .black // default Sora-ExtraBold
-    ) {
-        self.micro = micro
-        self.caption = caption
-        self.bodyS = bodyS
-        self.bodyL = bodyL
-        self.titleXS = titleXS
-        self.titleS = titleS
-        self.titleM = titleM
-        self.displayL = displayL
-        self.displayXL = displayXL
-        self.weightNormal = weightNormal
-        self.weightMedium = weightMedium
+    public init(headingWeight: Font.Weight = .semibold) {
         self.headingWeight = headingWeight
     }
 
@@ -64,7 +37,7 @@ public struct Typography {
     // Body text specific line height: 14pt font + 6pt spacing = 20pt line height
     public var bodyLineSpacing: CGFloat { 6 }
 
-    // MARK: - Font helpers
+    // MARK: - Font Helpers
     private func headingFont(size: CGFloat, isPrimary: Bool = true) -> Font {
         let name = isPrimary ? primaryHeadingFont : secondaryHeadingFont
         return Font.custom(name, size: size, relativeTo: .title)
@@ -77,33 +50,113 @@ public struct Typography {
         case .medium, .semibold:
             return Font.custom(bodyMediumFontName, size: size, relativeTo: .body)
         default:
-            return Font.custom(bodyFontName, size: size, relativeTo: .body)
+            return Font.custom(bodyRegularFontName, size: size, relativeTo: .body)
         }
     }
 
-    // MARK: - Semantic Fonts
-    public var h1: Font { headingFont(size: displayXL, isPrimary: true) }
-    public var h2: Font { headingFont(size: displayL, isPrimary: true) }
-    public var h3: Font { headingFont(size: titleM, isPrimary: false) }
-    public var h4: Font { headingFont(size: titleS, isPrimary: false) }
-    public var h5: Font { headingFont(size: titleXS, isPrimary: false) }
-    public var h6: Font { bodyFont(size: titleXS, weight: .bold) }
+    // MARK: - Headings (h1-h6)
+    /// Lora SemiBold @ 40pt (serif) - Major display heading
+    public var h1: Font { headingFont(size: size4XL, isPrimary: true) }
+    /// Lora SemiBold @ 32pt (serif) - Secondary display heading
+    public var h2: Font { headingFont(size: size3XL, isPrimary: true) }
+    /// Sora SemiBold @ 24pt - Section heading
+    public var h3: Font { headingFont(size: size2XL, isPrimary: false) }
+    /// Sora SemiBold @ 20pt - Subsection heading
+    public var h4: Font { headingFont(size: sizeXL, isPrimary: false) }
+    /// Sora SemiBold @ 16pt - Minor heading
+    public var h5: Font { headingFont(size: sizeLG, isPrimary: false) }
+    /// Manrope Bold @ 16pt - Smallest heading
+    public var h6: Font { bodyFont(size: sizeLG, weight: .bold) }
 
-    public var body: Font { bodyFont(size: bodyL, weight: weightNormal) }
-    public var bodyMedium: Font { bodyFont(size: bodyL, weight: .medium) }
-    public var bodyBold: Font { bodyFont(size: bodyL, weight: .bold) }
-    public var bodySmall: Font { bodyFont(size: bodyS, weight: weightNormal) }
-    public var bodySmallBold: Font { bodyFont(size: bodyS, weight: .bold) }
-    public var label: Font { bodyFont(size: caption, weight: weightMedium) }
-    public var labelBold: Font { bodyFont(size: caption, weight: .bold) }
-    public var button: Font { bodyFont(size: bodyL, weight: .bold) }
-    public var input: Font { bodyFont(size: bodyL, weight: weightNormal) }
-    public var captionText: Font { bodyFont(size: caption, weight: weightNormal) }
-    public var captionBold: Font { bodyFont(size: caption, weight: .bold) }
-    public var microText: Font { bodyFont(size: micro, weight: weightNormal) }
-    public var microBold: Font { bodyFont(size: micro, weight: .bold) }
+    // MARK: - Body Text (body1 = 16pt, body2 = 14pt)
+    /// 16pt regular - Primary body text
+    public var body1: Font { bodyFont(size: sizeLG, weight: .regular) }
+    /// 16pt medium - Emphasized body text
+    public var body1Medium: Font { bodyFont(size: sizeLG, weight: .medium) }
+    /// 16pt bold - Strong body text
+    public var body1Bold: Font { bodyFont(size: sizeLG, weight: .bold) }
+    /// 14pt regular - Secondary body text
+    public var body2: Font { bodyFont(size: sizeMD, weight: .regular) }
+    /// 14pt medium - Emphasized secondary text
+    public var body2Medium: Font { bodyFont(size: sizeMD, weight: .medium) }
+    /// 14pt bold - Strong secondary text
+    public var body2Bold: Font { bodyFont(size: sizeMD, weight: .bold) }
 
-    // MARK: - Line height modifiers
+    // MARK: - Small Text (caption = 13pt, micro = 11pt)
+    /// 13pt regular - Caption text
+    public var caption: Font { bodyFont(size: sizeSM, weight: .regular) }
+    /// 13pt medium - Emphasized caption
+    public var captionMedium: Font { bodyFont(size: sizeSM, weight: .medium) }
+    /// 13pt bold - Strong caption
+    public var captionBold: Font { bodyFont(size: sizeSM, weight: .bold) }
+    /// 11pt regular - Micro/fine print text
+    public var micro: Font { bodyFont(size: sizeXS, weight: .regular) }
+    /// 11pt medium - Emphasized micro text
+    public var microMedium: Font { bodyFont(size: sizeXS, weight: .medium) }
+    /// 11pt bold - Strong micro text
+    public var microBold: Font { bodyFont(size: sizeXS, weight: .bold) }
+
+    // MARK: - Utility Aliases
+    /// Label text - uses captionMedium (13pt medium)
+    public var label: Font { captionMedium }
+    /// Label bold variant (13pt bold)
+    public var labelBold: Font { captionBold }
+    /// Button text - uses body1Bold (16pt bold)
+    public var button: Font { body1Bold }
+    /// Input field text - uses body1 (16pt regular)
+    public var input: Font { body1 }
+
+    // MARK: - Deprecated Aliases (for backward compatibility)
+    @available(*, deprecated, renamed: "body1")
+    public var body: Font { body1 }
+
+    @available(*, deprecated, renamed: "body1Medium")
+    public var bodyMedium: Font { body1Medium }
+
+    @available(*, deprecated, renamed: "body1Bold")
+    public var bodyBold: Font { body1Bold }
+
+    @available(*, deprecated, renamed: "body2")
+    public var bodySmall: Font { body2 }
+
+    @available(*, deprecated, renamed: "body2Bold")
+    public var bodySmallBold: Font { body2Bold }
+
+    @available(*, deprecated, renamed: "caption")
+    public var captionText: Font { caption }
+
+    @available(*, deprecated, renamed: "micro")
+    public var microText: Font { micro }
+
+    // Deprecated size aliases
+    @available(*, deprecated, renamed: "sizeXS")
+    public var micro_size: CGFloat { sizeXS }
+
+    @available(*, deprecated, renamed: "sizeSM")
+    public var caption_size: CGFloat { sizeSM }
+
+    @available(*, deprecated, renamed: "sizeMD")
+    public var bodyS: CGFloat { sizeMD }
+
+    @available(*, deprecated, renamed: "sizeLG")
+    public var bodyL: CGFloat { sizeLG }
+
+    @available(*, deprecated, renamed: "sizeLG")
+    public var titleXS: CGFloat { sizeLG }
+
+    @available(*, deprecated, renamed: "sizeXL")
+    public var titleS: CGFloat { sizeXL }
+
+    @available(*, deprecated, renamed: "size2XL")
+    public var titleM: CGFloat { size2XL }
+
+    @available(*, deprecated, renamed: "size3XL")
+    public var displayL: CGFloat { size3XL }
+
+    @available(*, deprecated, renamed: "size4XL")
+    public var displayXL: CGFloat { size4XL }
+
+    // MARK: - Line Height Modifiers
     public func lineSpacingModifier(for size: CGFloat) -> some ViewModifier {
         LineHeight(spacing: lineSpacing(for: size))
     }
@@ -152,43 +205,43 @@ public extension View {
 public extension View {
     func h1(_ env: EnvironmentValues) -> some View {
         self.font(env.typography.h1)
-            .modifier(env.typography.headingLineSpacingModifier(for: env.typography.displayXL))
+            .modifier(env.typography.headingLineSpacingModifier(for: env.typography.size4XL))
     }
     func h2(_ env: EnvironmentValues) -> some View {
         self.font(env.typography.h2)
-            .modifier(env.typography.headingLineSpacingModifier(for: env.typography.displayL))
+            .modifier(env.typography.headingLineSpacingModifier(for: env.typography.size3XL))
     }
     func h3(_ env: EnvironmentValues) -> some View {
         self.font(env.typography.h3)
-            .modifier(env.typography.headingLineSpacingModifier(for: env.typography.titleM))
+            .modifier(env.typography.headingLineSpacingModifier(for: env.typography.size2XL))
     }
     func h4(_ env: EnvironmentValues) -> some View {
         self.font(env.typography.h4)
-            .modifier(env.typography.headingLineSpacingModifier(for: env.typography.titleS))
+            .modifier(env.typography.headingLineSpacingModifier(for: env.typography.sizeXL))
     }
     func h5(_ env: EnvironmentValues) -> some View {
         self.font(env.typography.h5)
-            .modifier(env.typography.headingLineSpacingModifier(for: env.typography.titleXS))
+            .modifier(env.typography.headingLineSpacingModifier(for: env.typography.sizeLG))
     }
     func h6(_ env: EnvironmentValues) -> some View {
         self.font(env.typography.h6)
-            .modifier(env.typography.headingLineSpacingModifier(for: env.typography.titleXS))
+            .modifier(env.typography.headingLineSpacingModifier(for: env.typography.sizeLG))
     }
     func bodyText(_ env: EnvironmentValues) -> some View {
-        self.font(env.typography.body)
+        self.font(env.typography.body1)
             .lineSpacing(env.typography.bodyLineSpacing)
     }
     func labelText(_ env: EnvironmentValues) -> some View {
         self.font(env.typography.label)
-            .modifier(env.typography.lineSpacingModifier(for: env.typography.caption))
+            .modifier(env.typography.lineSpacingModifier(for: env.typography.sizeSM))
     }
     func buttonText(_ env: EnvironmentValues) -> some View {
         self.font(env.typography.button)
-            .modifier(env.typography.lineSpacingModifier(for: env.typography.bodyL))
+            .modifier(env.typography.lineSpacingModifier(for: env.typography.sizeLG))
     }
     func inputText(_ env: EnvironmentValues) -> some View {
         self.font(env.typography.input)
-            .modifier(env.typography.lineSpacingModifier(for: env.typography.bodyL))
+            .modifier(env.typography.lineSpacingModifier(for: env.typography.sizeLG))
     }
 }
 

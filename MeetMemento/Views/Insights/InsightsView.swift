@@ -14,14 +14,52 @@ public struct InsightsView: View {
 
     let onNavigateToEntry: (EntryRoute) -> Void
 
+    // Animation state
     @State private var loadingStep = 0
     @State private var isShowingHeadlineSkeleton = true
     @State private var displayedHeadline = ""
     @State private var hasAnimated = false
 
-    private let fullHeadline = "Your emotional landscape reveals a blend of reflection, frustration, and growth that you're working towards during this difficult transition period"
-    private let fullObservation = "You've been processing heavy emotions around work, identity, and control, yet your tone has steadily shifted toward acceptance and purpose. Despite moments of doubt, there's an emerging sense that you're on the right path forward"
+    // Data state - fetched from API
+    @State private var insight: InsightContent?
+    @State private var entriesCount: Int = 0
+    @State private var isLoadingInsight = false
+    @State private var insightError: String?
+
+    // Fallback content for when API hasn't loaded yet
+    private let fallbackHeadline = "Analyzing your journal entries..."
+    private let fallbackObservation = "Your insights will appear here once we've analyzed your recent entries."
     private let totalSteps = 5 // Tag, Observation, Sentiments, Keywords, Questions
+
+    // Computed properties for display content
+    private var displayHeadline: String {
+        insight?.headline ?? fallbackHeadline
+    }
+
+    private var displayObservation: String {
+        insight?.observation ?? fallbackObservation
+    }
+
+    private var displayObservationExtended: String? {
+        insight?.observationExtended
+    }
+
+    private var displaySentiments: [InsightSentiment] {
+        insight?.sentiment ?? []
+    }
+
+    private var displayKeywords: [String] {
+        insight?.keywords ?? []
+    }
+
+    private var displayQuestions: [String] {
+        // Generate follow-up questions based on keywords or use defaults
+        insight?.questions ?? [
+            "What patterns do you notice in your recent entries?",
+            "How have your feelings evolved over time?",
+            "What would you like to explore further?"
+        ]
+    }
 
     public init(onNavigateToEntry: @escaping (EntryRoute) -> Void = { _ in }) {
         self.onNavigateToEntry = onNavigateToEntry
@@ -42,7 +80,11 @@ public struct InsightsView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.clear)
         .onAppear {
-            if !hasAnimated {
+            if insight == nil && !isLoadingInsight {
+                Task {
+                    await fetchInsights()
+                }
+            } else if !hasAnimated {
                 startLoadingSequence()
             } else {
                 showInstantContent()
@@ -50,9 +92,38 @@ public struct InsightsView: View {
         }
     }
 
+    // MARK: - Data Fetching
+
+    private func fetchInsights() async {
+        guard !entryViewModel.entries.isEmpty else { return }
+
+        isLoadingInsight = true
+        insightError = nil
+
+        do {
+            let result = try await InsightsService.shared.generateInsight(
+                entries: entryViewModel.entries
+            )
+            await MainActor.run {
+                self.insight = result.structuredContent
+                self.entriesCount = result.entriesAnalyzedCount
+                self.isLoadingInsight = false
+                startLoadingSequence()
+            }
+        } catch {
+            await MainActor.run {
+                self.insightError = error.localizedDescription
+                self.isLoadingInsight = false
+                // Still show animation with fallback content
+                startLoadingSequence()
+            }
+            print("❌ [InsightsView] Failed to fetch insights: \(error)")
+        }
+    }
+
     private func showInstantContent() {
         isShowingHeadlineSkeleton = false
-        displayedHeadline = fullHeadline
+        displayedHeadline = displayHeadline
         loadingStep = totalSteps
         hasAnimated = true
     }
@@ -74,11 +145,12 @@ public struct InsightsView: View {
     }
 
     private func typewriteHeadline() {
-        let characters = Array(fullHeadline)
+        let headlineText = displayHeadline
+        let characters = Array(headlineText)
         for index in 0..<characters.count {
             DispatchQueue.main.asyncAfter(deadline: .now() + Double(index) * 0.03) {
                 displayedHeadline.append(characters[index])
-                
+
                 // When finished, trigger the subsequent fade-ins
                 if index == characters.count - 1 {
                     startStaggeredReveal()
@@ -101,22 +173,22 @@ public struct InsightsView: View {
         }
     }
 
-    /// Placeholder content when entries exist
+    /// Content when entries exist - displays AI-generated insights
     private var placeholderContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 32) { // Standardized spacing
-                
+
                 // Group 1: The Lead (Heading + Tag)
                 VStack(alignment: .leading, spacing: 16) {
                     ZStack(alignment: .topLeading) {
                         // Reserved space for the full headline to prevent layout jumps/reflow
-                        Text(fullHeadline)
+                        Text(displayHeadline)
                             .font(type.h3)
                             .fontWeight(.bold)
                             .foregroundStyle(.clear)
                             .accessibilityHidden(true)
 
-                        if isShowingHeadlineSkeleton {
+                        if isShowingHeadlineSkeleton || isLoadingInsight {
                             VStack(alignment: .leading, spacing: 12) {
                                 SkeletonView(height: 28)
                                 SkeletonView(width: 200, height: 28)
@@ -132,16 +204,16 @@ public struct InsightsView: View {
                         }
                     }
 
-                    EntriesTag(count: 10)
+                    EntriesTag(count: entriesCount > 0 ? entriesCount : entryViewModel.entries.count)
                         .padding(.top, 8)
                         .opacity(loadingStep > 0 ? 1 : 0)
                         .scaleEffect(loadingStep > 0 ? 1 : 0.98)
                         .animation(.easeInOut(duration: 1.5), value: loadingStep)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                
+
                 // Group 2: Core Observation
-                Text(fullObservation)
+                Text(displayObservation)
                     .font(type.body)
                     .foregroundStyle(.white.opacity(0.6))
                     .lineSpacing(6)
@@ -149,45 +221,37 @@ public struct InsightsView: View {
                     .scaleEffect(loadingStep > 1 ? 1 : 0.99)
                     .animation(.easeInOut(duration: 1.5), value: loadingStep)
 
-                // Group 3: Emotion Deep Dive
-                VStack(alignment: .leading, spacing: 20) {
-                    SentimentAnalysisCard(
-                        emotionLabels: ["Anxiety", "Anticipation", "Fear", "Regret"],
-                        emotionValues: [50, 20, 18, 12]
-                    )
+                // Group 3: Emotion Deep Dive (only show if sentiments available)
+                if !displaySentiments.isEmpty {
+                    VStack(alignment: .leading, spacing: 20) {
+                        SentimentAnalysisCard(
+                            emotionLabels: displaySentiments.map { $0.label },
+                            emotionValues: displaySentiments.map { Double($0.score) }
+                        )
 
-                    Text("Your processing of heavy emotions around work and identity has shifted toward acceptance and purpose.")
-                        .font(type.body)
-                        .foregroundStyle(.white.opacity(0.6))
-                        .lineSpacing(6)
+                        if let extendedObservation = displayObservationExtended {
+                            Text(extendedObservation)
+                                .font(type.body)
+                                .foregroundStyle(.white.opacity(0.6))
+                                .lineSpacing(6)
+                        }
+                    }
+                    .opacity(loadingStep > 2 ? 1 : 0)
+                    .scaleEffect(loadingStep > 2 ? 1 : 0.98)
+                    .animation(.easeInOut(duration: 1.5), value: loadingStep)
                 }
-                .opacity(loadingStep > 2 ? 1 : 0)
-                .scaleEffect(loadingStep > 2 ? 1 : 0.98)
-                .animation(.easeInOut(duration: 1.5), value: loadingStep)
-                
-                // Group 4: Keyword Landscapes
-                KeywordsCard(
-                    keywords: [
-                        "Stress",
-                        "Keeping an image",
-                        "Growing from within",
-                        "New starts",
-                        "Acceptance",
-                        "Realizing the truth",
-                        "Choosing better",
-                    ]
-                )
-                .opacity(loadingStep > 3 ? 1 : 0)
-                .scaleEffect(loadingStep > 3 ? 1 : 0.98)
-                .animation(.easeInOut(duration: 1.5), value: loadingStep)
+
+                // Group 4: Keyword Landscapes (only show if keywords available)
+                if !displayKeywords.isEmpty {
+                    KeywordsCard(keywords: displayKeywords)
+                        .opacity(loadingStep > 3 ? 1 : 0)
+                        .scaleEffect(loadingStep > 3 ? 1 : 0.98)
+                        .animation(.easeInOut(duration: 1.5), value: loadingStep)
+                }
 
                 // Group 5: The Path Forward
                 FollowUpQuestionGroup(
-                    questions: [
-                        "What would happen if you let go of the need to control everything?",
-                        "How does your past shape the way you see your future?",
-                        "What are you afraid to admit to yourself?"
-                    ],
+                    questions: displayQuestions,
                     onQuestionTap: { _, question in
                         onNavigateToEntry(.createWithTitle(question))
                     }
@@ -197,6 +261,14 @@ public struct InsightsView: View {
                 .opacity(loadingStep > 4 ? 1 : 0)
                 .scaleEffect(loadingStep > 4 ? 1 : 0.99)
                 .animation(.easeInOut(duration: 1.5), value: loadingStep)
+
+                // Error message if insight generation failed
+                if let error = insightError {
+                    Text("Unable to generate insights: \(error)")
+                        .font(type.bodySmall)
+                        .foregroundStyle(.white.opacity(0.5))
+                        .padding(.top, 16)
+                }
             }
             .padding(.horizontal, 20)
             .padding(.top, 108)
@@ -207,7 +279,7 @@ public struct InsightsView: View {
             // Re-fetch data and reset animation sequence
             await entryViewModel.refreshEntries()
             resetAnimation()
-            startLoadingSequence()
+            await fetchInsights()
         }
     }
 
@@ -216,6 +288,8 @@ public struct InsightsView: View {
         isShowingHeadlineSkeleton = true
         displayedHeadline = ""
         hasAnimated = false
+        insight = nil
+        insightError = nil
     }
 
     /// Reusable empty state view
