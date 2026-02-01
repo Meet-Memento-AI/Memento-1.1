@@ -81,15 +81,15 @@ class AuthViewModel: ObservableObject {
         print("✅ OTP sent to \(email)")
     }
 
-    /// Verifies the OTP code entered by the user
-    func verifyOTP(email: String, code: String) async throws {
+    /// Verifies the OTP code entered by the user.
+    /// - Parameter isSignUp: If true (Create Account), onboarding is required; if false (Sign In), user is treated as onboarded.
+    func verifyOTP(email: String, code: String, isSignUp: Bool = false) async throws {
         let session = try await client.auth.verifyOTP(
             email: email,
             token: code,
             type: .email
         )
-        
-        
+
         // Ensure public.users record exists to satisfy FK constraints
         do {
             try await UserService.shared.ensureUserExists(id: session.user.id, email: email)
@@ -99,10 +99,13 @@ class AuthViewModel: ObservableObject {
         }
 
         self.isAuthenticated = true
-        // Assuming new users need onboarding, but existing ones might not. 
-        // Real implementation should fetch `public.users.onboarding_completed`.
-        self.authState = .authenticated(needsOnboarding: false) // Update to false to allow access
-        self.hasCompletedOnboarding = true // Unblock login for now
+        if isSignUp {
+            self.hasCompletedOnboarding = false
+            self.authState = .authenticated(needsOnboarding: true)
+        } else {
+            self.hasCompletedOnboarding = true
+            self.authState = .authenticated(needsOnboarding: false)
+        }
     }
     
     // BACKWARDS_COMPATIBILITY: The view might only pass 'code' if email is stored elsewhere.
@@ -122,11 +125,11 @@ class AuthViewModel: ObservableObject {
         try await sendOTP(email: email)
     }
 
-    func verifyOTP(code: String) async throws {
+    func verifyOTP(code: String, isSignUp: Bool = false) async throws {
         guard let email = currentEmail else {
             throw AuthError.missingEmail
         }
-        try await verifyOTP(email: email, code: code)
+        try await verifyOTP(email: email, code: code, isSignUp: isSignUp)
     }
 
     func signOut() async {
@@ -150,6 +153,13 @@ class AuthViewModel: ObservableObject {
         self.isAuthenticated = true
         self.hasCompletedOnboarding = true
         self.authState = .authenticated(needsOnboarding: false)
+    }
+
+    /// Skip to onboarding flow for UI testing (no real auth session).
+    func skipToOnboardingForTesting() {
+        self.isAuthenticated = true
+        self.hasCompletedOnboarding = false
+        self.authState = .authenticated(needsOnboarding: true)
     }
 
     func updateProfile(firstName: String, lastName: String) async throws {

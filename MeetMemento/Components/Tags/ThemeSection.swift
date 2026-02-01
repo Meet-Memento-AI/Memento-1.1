@@ -30,8 +30,8 @@ public struct ThemesSection: View {
                     .foregroundStyle(theme.primary)
                     .font(.system(size: 14, weight: .semibold))
                 Text(title)
-                    .font(type.bodyBold) // Manrope Bold 17 from Typography.swift
-                    .modifier(type.lineSpacingModifier(for: type.bodyL))
+                    .font(type.body1Bold) // Manrope Bold 17 from Typography.swift
+                    .modifier(type.lineSpacingModifier(for: type.sizeLG))
                     .foregroundStyle(theme.primary)
             }
             .padding(.horizontal, 4)

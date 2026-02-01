@@ -66,9 +66,9 @@ struct Theme {
     // Base / sizing tokens
     let baseFontSize: CGFloat = 16
     struct Radius {
-        let sm: CGFloat = 6
-        let md: CGFloat = 8
-        let lg: CGFloat = 10
+        let sm: CGFloat = 8
+        let md: CGFloat = 12
+        let lg: CGFloat = 24
         let xl: CGFloat = 32
         let round: CGFloat = 999
     }
@@ -122,7 +122,7 @@ struct Theme {
     let fabGradientStart: Color
     let fabGradientEnd: Color
 
-    // Header text gradient (for H1, H2, H3 in Sora)
+    // Header text gradient (for H1, H2, H3 in Manrope)
     let headerGradientStart: Color
     let headerGradientEnd: Color
 
@@ -178,7 +178,7 @@ struct Theme {
         accentForeground: BaseColors.white,
         destructive: Color(hex: "#D4183D"),
         destructiveForeground: BaseColors.white,
-        border: GrayScale.gray300,
+        border: GrayScale.gray200,
         input: GrayScale.gray300,
         inputBackground: GrayScale.gray100,
         switchBackground: GrayScale.gray400,

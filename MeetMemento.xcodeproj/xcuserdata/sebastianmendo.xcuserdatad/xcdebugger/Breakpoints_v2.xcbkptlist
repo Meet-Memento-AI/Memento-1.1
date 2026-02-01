@@ -62,8 +62,8 @@
             filePath = "MeetMemento/Views/AI-Chat/AIChatView.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "108"
-            endingLineNumber = "108"
+            startingLineNumber = "104"
+            endingLineNumber = "104"
             landmarkName = "messagesScrollView"
             landmarkType = "24">
          </BreakpointContent>

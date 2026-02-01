@@ -11,7 +11,7 @@ public struct AIChatView: View {
     @Environment(\.theme) private var theme
     @Environment(\.typography) private var type
     @Environment(\.dismiss) private var dismiss
-    
+
     @State private var messages: [ChatMessage] = []
     @State private var inputText: String = ""
     @State private var isSending: Bool = false
@@ -19,29 +19,34 @@ public struct AIChatView: View {
     @State private var selectedCitations: [JournalCitation]? = nil
     @State private var showCitationsSheet = false
     @FocusState private var isInputFocused: Bool
-    
+
     public init() {}
     
     public var body: some View {
-        ZStack(alignment: .top) {
-            // Background
-            theme.background.ignoresSafeArea()
-            
-            VStack(spacing: 0) {
-                // Messages list
-                messagesScrollView
-                
-                // Input area
-                inputArea
-            }
-            
-            // Secondary Header with back button (Layered on top)
-            Header(
-                onBackTapped: { dismiss() }
-            )
+        VStack(spacing: 0) {
+            // Messages list
+            messagesScrollView
+
+            // Input area
+            inputArea
         }
-        .toolbar(.hidden, for: .navigationBar)
-        .background(SwipeBackEnabler())
+        .background(theme.background.ignoresSafeArea())
+        .background(SwipeBackEnabler().frame(width: 1, height: 1))
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(true)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    dismiss()
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(theme.foreground)
+                }
+                .accessibilityLabel("Back")
+            }
+        }
         .onTapGesture {
             dismissKeyboard()
         }
@@ -89,10 +94,9 @@ public struct AIChatView: View {
                         }
                     }
                 }
-                // ... (padding attributes remain the same)
                 .padding(.horizontal, 20)
                 .padding(.bottom, 16)
-                .padding(.top, 100) // Clear the header height (Safe area + 44 + gradient)
+                .padding(.top, 16) // Standard top padding with native navigation
             }
             .onChange(of: messages.count) { oldCount, newCount in
                 scrollToBottom(proxy: proxy, count: newCount)

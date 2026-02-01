@@ -22,7 +22,6 @@ public struct LoginView: View {
             Text("Sign in to MeetMemento")
                 .font(type.h3)
                 .fontWeight(.semibold)
-                .headerGradient()
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 24)
 
@@ -54,7 +53,7 @@ public struct LoginView: View {
 
             if !status.isEmpty {
                 Text(status)
-                    .font(type.body)
+                    .font(type.body1)
                     .foregroundStyle(.green)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 24)

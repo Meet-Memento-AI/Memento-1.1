@@ -4,47 +4,39 @@ This directory contains custom font files for the MeetMemento app.
 
 ## Installed Fonts
 
-### Sora (Headings) ✅
-- **Sora-ExtraBold.ttf** - Highest weight, used for all heading styles (h1, h2, h3, h4)
-- **Sora-Bold.ttf** - Alternative bold weight
-- **Sora-SemiBold.ttf** - Secondary weight for smaller headings
-- Used for: titleS (20px), titleM (24px), displayL (32px), displayXL (40px)
+### Manrope (Default — app-wide) ✅
+- **Manrope-Regular.ttf** - Body text, captions, micro
+- **Manrope-Medium.ttf** - Labels, buttons, emphasized body
+- **Manrope-Bold.ttf** - All headings (h1–h6), bold body, buttons
 
-### Manrope (Body Text) ✅
-- **Manrope-Regular.ttf** - For body text and regular weight
-- **Manrope-Medium.ttf** - For labels, buttons, and medium weight text
-- **Manrope-Bold.ttf** - For bold emphasis and selected states (e.g., TabSwitcher)
+Default typography uses Manrope for all text. See `Typography.swift`.
+
+### Lora (Onboarding only) ✅
+- **Lora-Regular.ttf** - Body text on onboarding
+- **Lora-Medium.ttf** - Emphasized body on onboarding
+- **Lora-SemiBold.ttf** - Headings on onboarding
+- **Lora-Bold.ttf** - Bold body on onboarding
+
+Use `Typography.onboarding` (e.g. on WelcomeView and onboarding flow) to get Lora Serif.
+
+### Sora (optional / legacy)
+- Sora font files may remain in the bundle for reference but are not used by default typography.
 
 ## Installation Steps
 
-✅ **Font files are in place!** Now you need to add them to Xcode:
+✅ **Font files are in place!** Add them to Xcode and ensure Info.plist UIAppFonts includes:
+- Manrope-Regular, Manrope-Medium, Manrope-Bold
+- Lora-Regular, Lora-Medium, Lora-SemiBold, Lora-Bold
 
-1. **Open Xcode Project**: Open MeetMemento.xcodeproj
-2. **Add to Project Bundle**:
-   - Right-click on the "Resources/Fonts" folder in Xcode's project navigator
-   - Select "Add Files to MeetMemento"
-   - Navigate to and select all 5 font files:
-     * Recoleta-Black.otf
-     * Recoleta-Bold.otf
-     * Manrope-Regular.ttf
-     * Manrope-Medium.ttf
-     * Manrope-Bold.ttf
-   - Ensure "Copy items if needed" is **UNCHECKED** (they're already in place)
-   - Ensure "Create groups" is selected
-   - Ensure the **MeetMemento target** is checked
-3. **Verify Info.plist**: Font references are already configured in UIAppFonts array
-4. **Build & Test**: Build the project and check FontDebugger to verify fonts loaded
+## Font PostScript Names (Typography.swift)
 
-## Font PostScript Names
+**Default (Manrope):**
+- `Manrope-Bold` (h1–h5)
+- `Manrope-Regular`, `Manrope-Medium`, `Manrope-Bold` (body, caption, micro, h6)
 
-The Typography.swift system uses these PostScript names:
-- `Sora-ExtraBold` (for H1, H2, H5 - sizes 40px, 32px, 16px)
-- `Sora-SemiBold` (for H3, H4 - sizes 24px, 20px)
-- `Manrope-Regular` (for body text)
-- `Manrope-Medium` (for labels, buttons, medium weight text)
-- `Manrope-Bold` (for bold variants - bodyBold, labelBold, etc.)
-
-If fonts don't load, use FontDebugger to check the actual PostScript names.
+**Onboarding (Lora):**
+- `Lora-SemiBold` (h1–h5)
+- `Lora-Regular`, `Lora-Medium`, `Lora-Bold` (body, caption, micro, h6)
 
 ## Testing
 

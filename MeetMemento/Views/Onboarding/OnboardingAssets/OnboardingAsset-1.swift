@@ -15,7 +15,8 @@ struct OnboardingStackedCards: View {
         JournalCard(
             title: "Feeling incredible today",
             excerpt: "There's nothing like running through Golden Gate Park on a Saturday morning. I'm incredibly energized...",
-            date: Date()
+            date: Date(),
+            isInteractive: false
         )
         .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
         .shadow(color: .black.opacity(0.04), radius: 24, x: 0, y: 8)

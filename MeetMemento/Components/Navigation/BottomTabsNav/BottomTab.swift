@@ -1,22 +1,23 @@
 //
-//  TabPill.swift
+//  BottomTab.swift
 //  MeetMemento
 //
-//  Created by Sebastian Mendo on 10/1/25.
+//  Individual tab component following Apple HIG tab bar styling
+//  Uses native SF Symbols and system typography
 //
 
 import SwiftUI
 
-/// A single tab with icon + label that can render selected/unselected states.
-public struct TabPill: View {
+public struct BottomTab: View {
     public let title: String
     public let systemImage: String
     public let isSelected: Bool
     public var onTap: (() -> Void)?
-
+    
     @Environment(\.theme) private var theme
     @Environment(\.typography) private var type
-
+    @Environment(\.colorScheme) private var colorScheme
+    
     public init(
         title: String,
         systemImage: String,
@@ -28,27 +29,34 @@ public struct TabPill: View {
         self.isSelected = isSelected
         self.onTap = onTap
     }
-
+    
     public var body: some View {
         Button {
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
             onTap?()
         } label: {
-            // Apple HIG: Tab items should be vertical (icon above text)
             VStack(spacing: 4) {
-                // Apple HIG: Icons should be 22-25pt, use .fill variant for selected
+                // SF Symbol icon following native tab bar sizing
                 Image(systemName: systemImage)
                     .font(.system(size: 22, weight: isSelected ? .semibold : .medium))
                     .symbolVariant(isSelected ? .fill : .none)
                     .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(isSelected ? theme.primary : theme.foreground.opacity(0.6))
-
-                // Apple HIG: Text should be 11pt, semibold for selected
+                    .foregroundStyle(
+                        isSelected
+                            ? theme.primary
+                            : Color.primary.opacity(0.6)
+                    )
+                
+                // Label text following native tab bar typography
                 Text(title)
                     .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
-                    .foregroundStyle(isSelected ? theme.primary : theme.foreground.opacity(0.6))
+                    .foregroundStyle(
+                        isSelected
+                            ? theme.primary
+                            : Color.primary.opacity(0.6)
+                    )
             }
-            .frame(minWidth: 44, minHeight: 44) // Apple HIG: Minimum touch target
+            .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -59,26 +67,24 @@ public struct TabPill: View {
 
 // MARK: - Previews
 
-#Preview("TabPill • Light") {
-    HStack(spacing: 16) {
-        TabPill(title: "Journal", systemImage: "book.closed.fill", isSelected: true)
-        TabPill(title: "Insights", systemImage: "sparkles", isSelected: false)
-    }
+#Preview("BottomTab • Selected") {
+    BottomTab(
+        title: "Journal",
+        systemImage: "book.closed.fill",
+        isSelected: true
+    )
     .padding()
-    .background(Theme.light.background)
     .useTheme()
     .useTypography()
-    .preferredColorScheme(.light)
 }
 
-#Preview("TabPill • Dark") {
-    VStack(spacing: 16) {
-        TabPill(title: "Journal", systemImage: "book.closed.fill", isSelected: false)
-        TabPill(title: "Insights", systemImage: "sparkles", isSelected: true)
-    }
+#Preview("BottomTab • Unselected") {
+    BottomTab(
+        title: "Insights",
+        systemImage: "sparkles",
+        isSelected: false
+    )
     .padding()
-    .background(Theme.dark.background)
     .useTheme()
     .useTypography()
-    .preferredColorScheme(.dark)
 }

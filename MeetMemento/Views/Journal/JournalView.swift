@@ -2,157 +2,223 @@
 //  JournalView.swift
 //  MeetMemento
 //
-//  Main journal view with tabs for "Journal" and "Insights"
+//  Main journal view with integrated navigation stack and toolbar
 //
 
 import SwiftUI
 
 public struct JournalView: View {
-    @State private var topSelection: JournalTopTab
     @EnvironmentObject var entryViewModel: EntryViewModel
+    @EnvironmentObject var authViewModel: AuthViewModel
 
-    let onSettingsTapped: () -> Void
-    let onAIChatTapped: () -> Void
-    let onNavigateToEntry: (EntryRoute) -> Void
+    @State private var navigationPath = NavigationPath()
 
     @Environment(\.theme) private var theme
 
-    public init(
-        initialTab: JournalTopTab = .yourEntries,
-        onSettingsTapped: @escaping () -> Void = {},
-        onAIChatTapped: @escaping () -> Void = {},
-        onNavigateToEntry: @escaping (EntryRoute) -> Void = { _ in }
-    ) {
-        _topSelection = State(initialValue: initialTab)
-        self.onSettingsTapped = onSettingsTapped
-        self.onAIChatTapped = onAIChatTapped
-        self.onNavigateToEntry = onNavigateToEntry
+    // Current month for calendar button
+    private var currentMonthShort: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM"
+        return formatter.string(from: Date())
     }
 
+    private var currentMonthFull: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM"
+        return formatter.string(from: Date())
+    }
+
+    public init() {}
+
     public var body: some View {
-        ZStack(alignment: .top) {
-            // Content area - swipeable between tabs with lazy loading
-            TabView(selection: $topSelection) {
-                YourEntriesView(
-                    entryViewModel: entryViewModel,
-                    onNavigateToEntry: onNavigateToEntry
-                )
-                .tag(JournalTopTab.yourEntries)
-
-                InsightsView(onNavigateToEntry: onNavigateToEntry)
-                    .environmentObject(entryViewModel)
-                    .tag(JournalTopTab.digDeeper)
-            }
-            .tabViewStyle(.page(indexDisplayMode: .never))
-            .background(
-                Group {
-                    if topSelection == .digDeeper {
-                        theme.insightsBackground
-                    } else {
-                        Color.clear
+        NavigationStack(path: $navigationPath) {
+            YourEntriesView(
+                entryViewModel: entryViewModel,
+                onNavigateToEntry: { route in
+                    navigationPath.append(route)
+                }
+            )
+            .background(theme.background.ignoresSafeArea())
+            .toolbar {
+                // Leading: Settings button
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        navigationPath.append(SettingsRoute.main)
+                    } label: {
+                        Image(systemName: "line.3.horizontal")
+                            .font(.system(size: 20, weight: .medium))
+                            .foregroundStyle(theme.foreground)
                     }
+                    .accessibilityLabel("Settings")
                 }
-                .ignoresSafeArea()
-                .animation(.easeInOut(duration: 0.35), value: topSelection)
-            )
 
-            // Gradient background (only on Journal tab)
-            gradientBackground
-                .frame(height: 104)
-                .allowsHitTesting(false)
-                .opacity(topSelection == .yourEntries ? 1 : 0)
-                .animation(.easeInOut(duration: 0.35), value: topSelection)
-                .zIndex(5)
-
-            // Header with tabs and settings button (fixed position)
-            Header(
-                variant: .tabs,
-                selection: $topSelection,
-                onSettingsTapped: onSettingsTapped,
-                onAIChatTapped: onAIChatTapped
-            )
-            .background(Color.clear)
-            .zIndex(10) // Ensure header stays on top
-        }
-        .background(
-            Group {
-                if topSelection == .digDeeper {
-                    Color.clear
-                } else {
-                    theme.background
+                // Trailing: AI Chat button
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        navigationPath.append(AIChatRoute.main)
+                    } label: {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 22, weight: .medium))
+                            .foregroundStyle(theme.foreground)
+                }
+                .accessibilityLabel("AI Chat")
                 }
             }
-            .ignoresSafeArea()
-            .animation(.easeInOut(duration: 0.35), value: topSelection)
-        )
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 20)
+                    .onEnded { value in
+                        guard navigationPath.isEmpty else { return }
+                        guard value.translation.width > 60,
+                              value.translation.width > abs(value.translation.height),
+                              value.startLocation.x < 80 else { return }
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        navigationPath.append(AIChatRoute.main)
+                    }
+            )
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(for: EntryRoute.self) { route in
+                entryDestination(for: route)
+            }
+            .navigationDestination(for: SettingsRoute.self) { route in
+                settingsDestination(for: route)
+            }
+            .navigationDestination(for: AIChatRoute.self) { route in
+                switch route {
+                case .main:
+                    AIChatView()
+                        .toolbar(.hidden, for: .tabBar)
+                        .environment(\.fabVisible, false)
+                }
+            }
+            .navigationDestination(for: MonthInsightRoute.self) { route in
+                switch route {
+                case .detail(let monthLabel, let entryCount):
+                    InsightsView()
+                        .environmentObject(entryViewModel)
+                        .navigationTitle(monthLabel)
+                        .navigationBarTitleDisplayMode(.large)
+                        .toolbar(.hidden, for: .tabBar)
+                        .environment(\.fabVisible, false)
+                }
+            }
+        }
+        .overlay(alignment: .bottomTrailing) {
+            if navigationPath.isEmpty {
+                Button {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    createEntry()
+                } label: {
+                    Image(systemName: "square.and.pencil")
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 56, height: 56)
+                        .background { Circle().fill(theme.primary) }
+                        .shadow(color: theme.primary.opacity(0.3), radius: 12, x: 0, y: 4)
+                }
+                .accessibilityLabel("New Journal Entry")
+                .accessibilityHint("Create a new journal entry")
+                .padding(.trailing, 16)
+                .padding(.bottom, 32)
+            }
+        }
         .onAppear {
-            // Load entries when JournalView appears (deferred from app launch for better performance)
             Task {
                 await entryViewModel.loadEntriesIfNeeded()
             }
         }
     }
 
-    // MARK: - Gradient Background
+    // MARK: - Navigation Destinations
 
-    private var gradientBackground: some View {
-        LinearGradient(
-            gradient: Gradient(stops: [
-                .init(color: Color(hex: "#EFEFEF"), location: 0),
-                .init(color: Color(hex: "#EFEFEF"), location: 0.5388),
-                .init(color: Color(hex: "#EFEFEF").opacity(0), location: 1)
-            ]),
-            startPoint: .top,
-            endPoint: .bottom
-        )
-        .ignoresSafeArea(edges: .top)
+    @ViewBuilder
+    private func entryDestination(for route: EntryRoute) -> some View {
+        switch route {
+        case .create:
+            AddEntryView(state: .create) { title, text in
+                entryViewModel.createEntry(title: title, text: text)
+                navigationPath.removeLast()
+            }
+            .toolbar(.hidden, for: .tabBar)
+            .environment(\.fabVisible, false)
+        case .createWithTitle(let prefillTitle):
+            AddEntryView(state: .createWithTitle(prefillTitle)) { title, text in
+                entryViewModel.createEntry(title: title, text: text)
+                navigationPath.removeLast()
+            }
+            .toolbar(.hidden, for: .tabBar)
+            .environment(\.fabVisible, false)
+        case .edit(let entry):
+            AddEntryView(state: .edit(entry)) { title, text in
+                var updated = entry
+                updated.title = title
+                updated.text = text
+                entryViewModel.updateEntry(updated)
+                navigationPath.removeLast()
+            }
+            .toolbar(.hidden, for: .tabBar)
+            .environment(\.fabVisible, false)
+        }
+    }
+
+    @ViewBuilder
+    private func settingsDestination(for route: SettingsRoute) -> some View {
+        switch route {
+        case .main:
+            SettingsView()
+                .environmentObject(entryViewModel)
+                .environmentObject(authViewModel)
+                .toolbar(.hidden, for: .tabBar)
+                .environment(\.fabVisible, false)
+        case .profile:
+            ProfileSettingsView()
+                .toolbar(.hidden, for: .tabBar)
+                .environment(\.fabVisible, false)
+        case .appearance:
+            AppearanceSettingsView()
+                .toolbar(.hidden, for: .tabBar)
+                .environment(\.fabVisible, false)
+        case .about:
+            AboutSettingsView()
+                .toolbar(.hidden, for: .tabBar)
+                .environment(\.fabVisible, false)
+        }
+    }
+
+    // MARK: - Actions
+
+    private func createEntry() {
+        navigationPath.append(EntryRoute.create)
     }
 }
 
 // MARK: - Previews
 
 #Preview("Journal • Empty") {
-    @Previewable @StateObject var viewModel = EntryViewModel()
+    @Previewable @StateObject var entryViewModel = EntryViewModel()
+    @Previewable @StateObject var authViewModel = AuthViewModel()
 
-    JournalView(
-        onSettingsTapped: {},
-        onNavigateToEntry: { _ in }
-    )
-    .environmentObject(viewModel)
-    .onAppear {
-        viewModel.entries = [] // Empty state
-    }
-    .useTheme()
-    .useTypography()
+    JournalView()
+        .environmentObject(entryViewModel)
+        .environmentObject(authViewModel)
+        .onAppear {
+            entryViewModel.entries = []
+        }
+        .useTheme()
+        .useTypography()
 }
 
 #Preview("Journal • With Entries") {
-    @Previewable @StateObject var viewModel = EntryViewModel()
+    @Previewable @StateObject var entryViewModel = EntryViewModel()
+    @Previewable @StateObject var authViewModel = AuthViewModel()
 
-    JournalView(
-        onSettingsTapped: {},
-        onNavigateToEntry: { _ in }
-    )
-    .environmentObject(viewModel)
-    .onAppear {
-        viewModel.loadMockEntries() // Load sample data for preview only
-    }
-    .useTheme()
-    .useTypography()
-}
-
-#Preview("Insights • With Content") {
-    @Previewable @StateObject var viewModel = EntryViewModel()
-
-    JournalView(
-        initialTab: .digDeeper,
-        onSettingsTapped: {},
-        onNavigateToEntry: { _ in }
-    )
-    .environmentObject(viewModel)
-    .onAppear {
-        viewModel.loadMockEntries() // Load sample data to show insights content
-    }
-    .useTheme()
-    .useTypography()
+    JournalView()
+        .environmentObject(entryViewModel)
+        .environmentObject(authViewModel)
+        .onAppear {
+            entryViewModel.loadMockEntries()
+        }
+        .useTheme()
+        .useTypography()
 }

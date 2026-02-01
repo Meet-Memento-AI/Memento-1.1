@@ -29,20 +29,14 @@ public struct InsightCard: View {
             Text(text).bodyText(.init())
                 .foregroundStyle(theme.cardForeground)
             if let footer {
-                Divider().opacity(0.2)
+                Divider().opacity(Spacing.Opacity.overlay)
                 Text(footer)
                     .foregroundStyle(theme.mutedForeground)
-                    .font(.system(size: type.bodyL))
+                    .typographyBody1()
             }
         }
-        .padding(16)
-        .background(theme.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: theme.radius.lg)
-                .stroke(theme.border, lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 4)
+        .padding(Spacing.md)
+        .cardStyle(radius: theme.radius.lg, border: true, shadow: true)
     }
 }
 

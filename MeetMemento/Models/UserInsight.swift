@@ -123,6 +123,30 @@ public struct InsightSentiment: Codable, Hashable {
     }
 }
 
+// MARK: - Sample (demo UI only; no edge function)
+extension InsightContent {
+    /// Sample content for InsightsView demo. One sample "API" response to visualize loading and loaded state.
+    public static let sample = InsightContent(
+        headline: "You're reflecting more on growth and balance.",
+        observation: "Your entries this month often touch on small wins and moments of pause. There's a clear thread of wanting to feel more in control of your time while also being kinder to yourself when things slip.",
+        observationExtended: "Consider setting one small intention per week—something you can track in a sentence—and see how it shows up in your writing.",
+        themes: ["Growth", "Balance", "Self-compassion"],
+        suggestions: ["Try a weekly one-sentence intention.", "Notice when you use \"should\" and soften it."],
+        sentiment: [
+            InsightSentiment(label: "Calm", score: 35),
+            InsightSentiment(label: "Hopeful", score: 28),
+            InsightSentiment(label: "Reflective", score: 22),
+            InsightSentiment(label: "Curious", score: 15)
+        ],
+        keywords: ["Growth", "Balance", "Time", "Intentions", "Self-compassion", "Reflection"],
+        questions: [
+            "What would happen if you gave yourself permission to pause more often?",
+            "How does your idea of \"balance\" change from week to week?",
+            "What's one small win you could celebrate today?"
+        ]
+    )
+}
+
 // MARK: - Helper for JSONB
 // Simple wrapper to allow decoding mixed JSON types
 public struct AnyCodable: Codable, Hashable {

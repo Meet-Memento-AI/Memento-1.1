@@ -32,7 +32,7 @@ public struct ProfileSettingsView: View {
                         .headerGradient()
 
                     Text("Update your personal information")
-                        .font(type.body)
+                        .font(type.body1)
                         .foregroundStyle(theme.mutedForeground)
                 }
                 .padding(.horizontal, 16)
@@ -43,7 +43,7 @@ public struct ProfileSettingsView: View {
                     // First name
                     VStack(alignment: .leading, spacing: 8) {
                         Text("First name")
-                            .font(type.body)
+                            .font(type.body1)
                             .foregroundStyle(theme.foreground)
                             .fontWeight(.medium)
 
@@ -57,7 +57,7 @@ public struct ProfileSettingsView: View {
                     // Last name
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Last name")
-                            .font(type.body)
+                            .font(type.body1)
                             .foregroundStyle(theme.foreground)
                             .fontWeight(.medium)
 
@@ -78,7 +78,7 @@ public struct ProfileSettingsView: View {
                                     .tint(.white)
                             } else {
                                 Text("Save Changes")
-                                    .font(type.bodyBold)
+                                    .font(type.body1Bold)
                             }
                         }
                         .frame(maxWidth: .infinity)
@@ -97,7 +97,7 @@ public struct ProfileSettingsView: View {
                                 .foregroundStyle(.green)
                                 .font(.system(size: 14))
                             Text("Profile updated successfully")
-                                .font(type.bodySmall)
+                                .font(type.body2)
                                 .foregroundStyle(.green)
                         }
                         .padding(12)
@@ -112,7 +112,7 @@ public struct ProfileSettingsView: View {
                                 .foregroundStyle(.red)
                                 .font(.system(size: 14))
                             Text(errorMessage)
-                                .font(type.bodySmall)
+                                .font(type.body2)
                                 .foregroundStyle(.red)
                         }
                         .padding(12)

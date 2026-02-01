@@ -23,7 +23,7 @@ struct KeywordsCard: View {
             // Header with sparkles icon
             HStack(spacing: 8) {
                 Image(systemName: "sparkles")
-                    .font(.system(size: 14, weight: .bold))
+                    .font(type.body2Bold)
                     .foregroundStyle(.white)
 
                 Text("KEYWORDS")

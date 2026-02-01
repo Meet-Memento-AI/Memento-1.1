@@ -44,10 +44,14 @@ class EntryViewModel: ObservableObject {
         isLoading = false
     }
     
+    /// Wrapper for loadEntries() - provides semantic clarity at call sites
+    /// where entries should only be loaded if needed (e.g., on first view appear)
     func loadEntriesIfNeeded() async {
         await loadEntries()
     }
-    
+
+    /// Wrapper for loadEntries() - provides semantic clarity at call sites
+    /// where entries should be explicitly refreshed (e.g., pull-to-refresh)
     func refreshEntries() async {
         await loadEntries()
     }
@@ -140,23 +144,30 @@ class EntryViewModel: ObservableObject {
 
 // MARK: - Month Group Model
 
-struct MonthGroup: Identifiable {
-    let id = UUID()
-    let monthStart: Date
-    let entries: [Entry]
+public struct MonthGroup: Identifiable {
+    public let id = UUID()
+    public let monthStart: Date
+    public let entries: [Entry]
 
-    var monthLabel: String {
+    public var monthLabel: String {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMMM yyyy"
         return formatter.string(from: monthStart)
     }
 
-    var entryCount: Int { entries.count }
+    public var entryCount: Int { entries.count }
 }
 
 // MARK: - Mock Data Support
 extension EntryViewModel {
     func loadMockEntries() {
         self.entries = Entry.sampleEntries
+    }
+
+    /// Returns a view model with sample entries for previews (e.g. ContentView Insights tab with entries).
+    static func withPreviewEntries() -> EntryViewModel {
+        let vm = EntryViewModel()
+        vm.entries = Entry.sampleEntries
+        return vm
     }
 }

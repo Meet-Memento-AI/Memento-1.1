@@ -194,7 +194,7 @@ struct PercentageBarChart: View {
 
                             // Percentage value (no color-only reliance)
                             Text("\(percentage(for: item.value))%")
-                                .font(typography.body)
+                                .font(typography.body1)
                                 .foregroundColor(ChartAccessibilityTokens.textPercentage)
                                 .accessibilityLabel("\(percentage(for: item.value)) percent")
                         }

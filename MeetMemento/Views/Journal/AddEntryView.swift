@@ -92,6 +92,8 @@ public struct AddEntryView: View {
                 saveButton
             }
         }
+        .toolbarBackground(.visible, for: .navigationBar)
+        .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
         .overlay(alignment: .bottom) {
             microphoneFAB
                 .padding(.bottom, 32)
@@ -246,8 +248,8 @@ public struct AddEntryView: View {
                 ProgressView()
                     .tint(theme.primary)
             } else {
-                Text("Save")
-                    .fontWeight(.medium)
+                Image(systemName: "checkmark")
+                    .font(.system(size: 18, weight: .semibold))
             }
         }
         .disabled(isSaving || text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)

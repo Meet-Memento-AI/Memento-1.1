@@ -47,7 +47,7 @@ struct AILoadingState: View {
     
     private var loadingText: some View {
         Text("Memento is thinking...")
-            .font(.custom("Manrope-Medium", size: 16))
+            .typographyBody1()
     }
 }
 

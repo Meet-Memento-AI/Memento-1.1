@@ -38,7 +38,7 @@ struct QuestionCounterView: View {
                 .animation(.easeInOut(duration: 0.3), value: isAllComplete)
 
             Text("\(completed)/\(total)")
-                .font(type.bodyBold)
+                .font(type.body1Bold)
                 .foregroundStyle(foregroundColor)
                 .contentTransition(.numericText())
         }

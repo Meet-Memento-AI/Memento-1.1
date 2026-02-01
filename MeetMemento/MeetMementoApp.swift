@@ -29,9 +29,14 @@ struct MeetMementoApp: App {
                             print("🔴 ContentView appeared")
                             #endif
                         }
+                } else if authViewModel.isAuthenticated && !authViewModel.hasCompletedOnboarding {
+                    // Authenticated but not onboarded (Create Account flow) - show onboarding
+                    OnboardingCoordinatorView()
+                        .useTheme()
+                        .useTypography()
+                        .environmentObject(authViewModel)
                 } else {
-                    // Not authenticated OR incomplete onboarding - show WelcomeView
-                    // WelcomeView will handle routing to correct step (Phase 2)
+                    // Not authenticated - show WelcomeView
                     WelcomeView()
                         .useTheme()
                         .useTypography()

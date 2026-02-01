@@ -44,7 +44,7 @@ public struct AboutSettingsView: View {
                         .headerGradient()
 
                     Text("MeetMemento")
-                        .font(type.body)
+                        .font(type.body1)
                         .foregroundStyle(theme.mutedForeground)
                 }
                 .padding(.horizontal, 16)
@@ -114,7 +114,7 @@ public struct AboutSettingsView: View {
 
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Version")
-                                .font(type.body)
+                                .font(type.body1)
                                 .foregroundStyle(theme.foreground)
 
                             Text(appVersion)
@@ -147,7 +147,7 @@ public struct AboutSettingsView: View {
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Device")
-                            .font(type.body)
+                            .font(type.body1)
                             .foregroundStyle(theme.foreground)
 
                         Text(deviceInfo)

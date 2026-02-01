@@ -37,7 +37,7 @@ public struct CreateAccountView: View {
                             .headerGradient()
 
                         Text("Create your account to get started.")
-                            .font(type.body)
+                            .font(type.body1)
                             .foregroundStyle(theme.mutedForeground)
                     }
                     .padding(.bottom, 16)
@@ -46,7 +46,7 @@ public struct CreateAccountView: View {
                     VStack(spacing: 16) {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("First name")
-                                .font(type.body)
+                                .font(type.body1)
                                 .foregroundStyle(theme.foreground)
                                 .fontWeight(.medium)
 
@@ -59,7 +59,7 @@ public struct CreateAccountView: View {
 
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Last name")
-                                .font(type.body)
+                                .font(type.body1)
                                 .foregroundStyle(theme.foreground)
                                 .fontWeight(.medium)
 
@@ -74,7 +74,7 @@ public struct CreateAccountView: View {
                     // Status message
                     if !status.isEmpty {
                         Text(status)
-                            .font(type.body)
+                            .font(type.body1)
                             .foregroundStyle(status.contains("✅") ? .green : .red)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 16)

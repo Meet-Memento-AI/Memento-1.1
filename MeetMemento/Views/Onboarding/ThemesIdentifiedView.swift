@@ -70,11 +70,11 @@ public struct ThemesIdentifiedView: View {
                     // Counter
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Selected \(selectedThemes.count) of \(themes.count)")
-                            .font(type.bodyBold)
+                            .font(type.body1Bold)
                             .foregroundStyle(uiTheme.foreground)
 
                         Text("Select at least \(recommendedCount)")
-                            .font(type.captionText)
+                            .font(type.caption)
                             .foregroundStyle(uiTheme.mutedForeground)
                     }
 
@@ -106,7 +106,7 @@ public struct ThemesIdentifiedView: View {
 
             ToolbarItem(placement: .principal) {
                 Text("Choose Your Themes")
-                    .font(type.bodySmall)
+                    .font(type.body2)
                     .foregroundStyle(uiTheme.mutedForeground)
             }
         }

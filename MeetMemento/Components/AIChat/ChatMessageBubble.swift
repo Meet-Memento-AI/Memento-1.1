@@ -33,7 +33,7 @@ public struct ChatMessageBubble: View {
                         .padding(.horizontal, 16)
                         .padding(.vertical, 16)
                         .background(PrimaryScale.primary600)
-                        .clipShape(RoundedRectangle(cornerRadius: theme.radius.xl, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous))
                 }
             }
         } else {
@@ -50,7 +50,7 @@ public struct ChatMessageBubble: View {
         if message.isFromUser {
             // User messages: plain text
             Text(message.content)
-                .font(type.body)
+                .font(type.body2)
                 .foregroundStyle(BaseColors.white)
                 .lineSpacing(type.bodyLineSpacing)
         } else if let aiContent = message.aiOutputContent {
@@ -63,7 +63,7 @@ public struct ChatMessageBubble: View {
             // AI messages: support markdown/rich text (fallback)
             // Using LocalizedStringKey to enable automatic markdown parsing
             Text(LocalizedStringKey(message.content))
-                .font(type.body)
+                .font(type.body1)
                 .foregroundStyle(theme.foreground)
                 .lineSpacing(type.bodyLineSpacing)
         }

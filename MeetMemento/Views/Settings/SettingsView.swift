@@ -21,35 +21,30 @@ struct SettingsView: View {
     @State private var deleteAccountError = ""
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Secondary Header
-            Header(
-                title: "Settings",
-                onBackTapped: { dismiss() }
-            )
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                // Appearance Section
+                appearanceSection
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    // Appearance Section
-                    appearanceSection
+                // About Section
+                aboutSection
 
-                    // About Section
-                    aboutSection
+                // Data & Privacy Section
+                dataPrivacySection
 
-                    // Data & Privacy Section
-                    dataPrivacySection
+                // Account Section
+                accountSection
 
-                    // Account Section
-                    accountSection
-
-                    Spacer(minLength: 40)
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 8)
+                Spacer(minLength: 40)
             }
+            .padding(.horizontal, 20)
+            .padding(.top, 8)
         }
         .background(theme.background.ignoresSafeArea())
-        .navigationBarHidden(true)
+        .navigationTitle("Settings")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(.visible, for: .navigationBar)
+        .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
         .sheet(isPresented: $showDataUsageInfo) {
             NavigationStack {
                 DataUsageInfoView()

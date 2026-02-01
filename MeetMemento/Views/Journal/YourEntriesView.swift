@@ -41,6 +41,7 @@ struct YourEntriesView: View {
                 entriesList
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .confirmationDialog(
             "Delete this entry?",
             isPresented: $showDeleteConfirmation,
@@ -64,10 +65,11 @@ struct YourEntriesView: View {
                 .tint(theme.primary)
                 .scaleEffect(1.2)
             Text("Loading your entries...")
-                .font(type.body)
+                .font(type.body1)
                 .foregroundStyle(theme.mutedForeground)
             Spacer()
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func errorState(message: String) -> some View {
@@ -81,7 +83,7 @@ struct YourEntriesView: View {
                 .fontWeight(.semibold)
                 .foregroundStyle(GrayScale.gray900)
             Text(message)
-                .font(type.body)
+                .font(type.body1)
                 .foregroundStyle(theme.mutedForeground)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
@@ -109,7 +111,7 @@ struct YourEntriesView: View {
                 .foregroundStyle(GrayScale.gray900)
 
             Text("Start writing your first entry to see it here.")
-                .font(type.body)
+                .font(type.body1)
                 .foregroundStyle(theme.mutedForeground)
 
             Spacer()
@@ -128,11 +130,11 @@ struct YourEntriesView: View {
                             .foregroundStyle(theme.destructive)
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Sync Error")
-                                .font(type.body)
+                                .font(type.body1)
                                 .fontWeight(.semibold)
                                 .foregroundStyle(theme.foreground)
                             Text(errorMessage)
-                                .font(type.body)
+                                .font(type.body1)
                                 .foregroundStyle(theme.mutedForeground)
                         }
                         Spacer()
@@ -144,7 +146,7 @@ struct YourEntriesView: View {
 
                 // Month groups - entries organized by month
                 ForEach(entryViewModel.entriesByMonth) { monthGroup in
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 16) {
                         // Month header
                         HStack {
                             Text(monthGroup.monthLabel)
@@ -154,7 +156,7 @@ struct YourEntriesView: View {
                             Spacer()
 
                             Text("\(monthGroup.entryCount) \(monthGroup.entryCount == 1 ? "entry" : "entries")")
-                                .font(type.body)
+                                .font(type.body1)
                                 .foregroundStyle(theme.mutedForeground)
                         }
                         .padding(.horizontal, 4)
@@ -185,7 +187,7 @@ struct YourEntriesView: View {
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.top, 108) // 80px header + 28px spacing
+            .padding(.top, 16) // Standard top padding with native navigation
             .padding(.bottom, 20) // Bottom padding for scrolling
         }
         .refreshable {

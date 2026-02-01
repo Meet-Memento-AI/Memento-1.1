@@ -1,8 +1,8 @@
 import SwiftUI
 
 // MARK: - Typography
-// Supports dynamic font weight control for headings (Lora SemiBold for major headings,
-// Sora SemiBold for others) and body text (Manrope Regular / Medium / Bold).
+// Default app typography uses Manrope for all text (headings and body).
+// Use Typography.onboarding for onboarding screens (Lora Serif).
 
 public struct Typography {
 
@@ -16,31 +16,58 @@ public struct Typography {
     public let size3XL: CGFloat = 32   // h2
     public let size4XL: CGFloat = 40   // h1
 
-    // MARK: - Font Families
-    private let primaryHeadingFont = "Lora-SemiBold"
-    private let secondaryHeadingFont = "Sora-SemiBold"
-    private let bodyRegularFontName = "Manrope-Regular"
-    private let bodyMediumFontName = "Manrope-Medium"
-    private let bodyBoldFontName = "Manrope-Bold"
+    // MARK: - Font Families (configurable for default vs onboarding)
+    private let headingFontName: String
+    private let bodyRegularFontName: String
+    private let bodyMediumFontName: String
+    private let bodyBoldFontName: String
 
     // MARK: - Configurable Properties
     public let headingWeight: Font.Weight
 
+    /// Default app typography: Manrope for all text.
     public init(headingWeight: Font.Weight = .semibold) {
         self.headingWeight = headingWeight
+        self.headingFontName = "Manrope-Bold"
+        self.bodyRegularFontName = "Manrope-Regular"
+        self.bodyMediumFontName = "Manrope-Medium"
+        self.bodyBoldFontName = "Manrope-Bold"
     }
+
+    /// Internal init for custom font families (e.g. onboarding with Lora).
+    private init(
+        headingFontName: String,
+        bodyRegularFontName: String,
+        bodyMediumFontName: String,
+        bodyBoldFontName: String,
+        headingWeight: Font.Weight = .semibold
+    ) {
+        self.headingWeight = headingWeight
+        self.headingFontName = headingFontName
+        self.bodyRegularFontName = bodyRegularFontName
+        self.bodyMediumFontName = bodyMediumFontName
+        self.bodyBoldFontName = bodyBoldFontName
+    }
+
+    /// Typography for onboarding screens: Lora Serif for headings and body.
+    public static let onboarding: Typography = Typography(
+        headingFontName: "Lora-SemiBold",
+        bodyRegularFontName: "Lora-Regular",
+        bodyMediumFontName: "Lora-Medium",
+        bodyBoldFontName: "Lora-Bold",
+        headingWeight: .semibold
+    )
 
     // MARK: - Line Spacing
     private func lineSpacing(for size: CGFloat) -> CGFloat { max(0, size * 0.5) }
     private func headingLineSpacing(for size: CGFloat) -> CGFloat { max(0, size * 0.2) }
 
-    // Body text specific line height: 14pt font + 6pt spacing = 20pt line height
-    public var bodyLineSpacing: CGFloat { 6 }
+    // Body text line spacing (2px lower than previous 6pt): body1/body2 use 4pt
+    public var bodyLineSpacing: CGFloat { 4 }
 
     // MARK: - Font Helpers
-    private func headingFont(size: CGFloat, isPrimary: Bool = true) -> Font {
-        let name = isPrimary ? primaryHeadingFont : secondaryHeadingFont
-        return Font.custom(name, size: size, relativeTo: .title)
+    private func headingFont(size: CGFloat) -> Font {
+        Font.custom(headingFontName, size: size, relativeTo: .title)
     }
 
     private func bodyFont(size: CGFloat, weight: Font.Weight = .regular) -> Font {
@@ -54,30 +81,30 @@ public struct Typography {
         }
     }
 
-    // MARK: - Headings (h1-h6)
-    /// Lora SemiBold @ 40pt (serif) - Major display heading
-    public var h1: Font { headingFont(size: size4XL, isPrimary: true) }
-    /// Lora SemiBold @ 32pt (serif) - Secondary display heading
-    public var h2: Font { headingFont(size: size3XL, isPrimary: true) }
-    /// Sora SemiBold @ 24pt - Section heading
-    public var h3: Font { headingFont(size: size2XL, isPrimary: false) }
-    /// Sora SemiBold @ 20pt - Subsection heading
-    public var h4: Font { headingFont(size: sizeXL, isPrimary: false) }
-    /// Sora SemiBold @ 16pt - Minor heading
-    public var h5: Font { headingFont(size: sizeLG, isPrimary: false) }
-    /// Manrope Bold @ 16pt - Smallest heading
+    // MARK: - Headings (h1-h6) — Manrope Bold by default; Lora SemiBold for onboarding
+    /// 40pt - Major display heading
+    public var h1: Font { headingFont(size: size4XL) }
+    /// 32pt - Secondary display heading
+    public var h2: Font { headingFont(size: size3XL) }
+    /// 24pt - Section heading
+    public var h3: Font { headingFont(size: size2XL) }
+    /// 20pt - Subsection heading
+    public var h4: Font { headingFont(size: sizeXL) }
+    /// 16pt - Minor heading
+    public var h5: Font { headingFont(size: sizeLG) }
+    /// 16pt bold (body weight) - Smallest heading
     public var h6: Font { bodyFont(size: sizeLG, weight: .bold) }
 
     // MARK: - Body Text (body1 = 16pt, body2 = 14pt)
-    /// 16pt regular - Primary body text
-    public var body1: Font { bodyFont(size: sizeLG, weight: .regular) }
-    /// 16pt medium - Emphasized body text
+    /// 16pt medium - Primary body text
+    public var body1: Font { bodyFont(size: sizeLG, weight: .medium) }
+    /// 16pt medium - Emphasized body text (same weight as body1)
     public var body1Medium: Font { bodyFont(size: sizeLG, weight: .medium) }
     /// 16pt bold - Strong body text
     public var body1Bold: Font { bodyFont(size: sizeLG, weight: .bold) }
-    /// 14pt regular - Secondary body text
-    public var body2: Font { bodyFont(size: sizeMD, weight: .regular) }
-    /// 14pt medium - Emphasized secondary text
+    /// 14pt medium - Secondary body text
+    public var body2: Font { bodyFont(size: sizeMD, weight: .medium) }
+    /// 14pt medium - Emphasized secondary text (same weight as body2)
     public var body2Medium: Font { bodyFont(size: sizeMD, weight: .medium) }
     /// 14pt bold - Strong secondary text
     public var body2Bold: Font { bodyFont(size: sizeMD, weight: .bold) }

@@ -23,7 +23,7 @@ struct FollowUpQuestion: View {
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "arrow.turn.down.right")
-                .font(.system(size: 20, weight: .semibold))
+                .font(type.h4)
                 .foregroundStyle(.white)
 
             Text(question)

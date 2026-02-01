@@ -28,7 +28,7 @@ public struct AppearanceSettingsView: View {
                         .headerGradient()
 
                     Text("Customize how MeetMemento looks")
-                        .font(type.body)
+                        .font(type.body1)
                         .foregroundStyle(theme.mutedForeground)
                 }
                 .padding(.horizontal, 16)
@@ -42,7 +42,7 @@ public struct AppearanceSettingsView: View {
                             .foregroundStyle(theme.foreground)
 
                         Text("Choose your preferred color scheme")
-                            .font(type.bodySmall)
+                            .font(type.body2)
                             .foregroundStyle(theme.mutedForeground)
                     }
                     .padding(.horizontal, 16)
@@ -63,7 +63,7 @@ public struct AppearanceSettingsView: View {
                                     // Title and description
                                     VStack(alignment: .leading, spacing: 4) {
                                         Text(themeOption.displayName)
-                                            .font(type.body)
+                                            .font(type.body1)
                                             .foregroundStyle(theme.foreground)
 
                                         Text(descriptionForTheme(themeOption))

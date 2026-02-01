@@ -27,7 +27,7 @@ public struct DataUsageInfoView: View {
                         .headerGradient()
 
                     Text("What we collect and why")
-                        .font(type.body)
+                        .font(type.body1)
                         .foregroundStyle(theme.mutedForeground)
                 }
                 .padding(.horizontal, 16)

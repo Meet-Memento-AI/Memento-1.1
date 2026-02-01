@@ -10,120 +10,127 @@
 
 import SwiftUI
 
-// MARK: - Navigation routes for journal entry editor
-public enum EntryRoute: Hashable {
-    case create
-    case createWithTitle(String)
-    case edit(Entry)
+private struct PreviewEntryViewModelKey: EnvironmentKey {
+    static let defaultValue: EntryViewModel? = nil
 }
-
-// MARK: - Navigation route for settings
-public enum SettingsRoute: Hashable {
-    case main
-    case profile
-    case appearance
-    case about
+private struct PreviewInitialTabKey: EnvironmentKey {
+    static let defaultValue: Int? = nil
 }
-
-// MARK: - Navigation route for AI Chat
-public enum AIChatRoute: Hashable {
-    case main
+extension EnvironmentValues {
+    var previewEntryViewModel: EntryViewModel? {
+        get { self[PreviewEntryViewModelKey.self] }
+        set { self[PreviewEntryViewModelKey.self] = newValue }
+    }
+    var previewInitialTab: Int? {
+        get { self[PreviewInitialTabKey.self] }
+        set { self[PreviewInitialTabKey.self] = newValue }
+    }
 }
 
 public struct ContentView: View {
-    // Navigation path for entry editor and settings
-    @State private var navigationPath = NavigationPath()
+    /// Single source of truth for tab selection; @State avoids @SceneStorage persistence causing repeated/conflicting updates when switching tabs.
+    @State private var selectedTab = 0
+    @State private var didSetPreviewTab = false
 
-    // Entry view model for managing journal entries (shared across views)
-    @StateObject private var entryViewModel = EntryViewModel()
+    @StateObject private var defaultEntryViewModel = EntryViewModel()
+    @Environment(\.previewEntryViewModel) private var previewEntryViewModel: EntryViewModel?
+    @Environment(\.previewInitialTab) private var previewInitialTab: Int?
+
+    private var entryViewModel: EntryViewModel {
+        previewEntryViewModel ?? defaultEntryViewModel
+    }
 
     @Environment(\.theme) private var theme
+    @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject var authViewModel: AuthViewModel
+
+    /// Tab bar tint: selection-aware for visibility. When Insights is selected, white for contrast on dark purple background; when Journal is selected, follows light/dark behavior.
+    private var tabBarTint: Color {
+        if selectedTab == 1 {
+            return .white
+        }
+        return colorScheme == .dark ? .white : PrimaryScale.primary900
+    }
 
     public init() {}
 
     public var body: some View {
-        NavigationStack(path: $navigationPath) {
-            ZStack {
-                theme.background.ignoresSafeArea()
-
-                // Main journal view with top navigation tabs
-                JournalView(
-                    onSettingsTapped: {
-                        navigationPath.append(SettingsRoute.main)
-                    },
-                    onAIChatTapped: {
-                        navigationPath.append(AIChatRoute.main)
-                    },
-                    onNavigateToEntry: { route in
-                        navigationPath.append(route)
-                    }
-                )
-                .environmentObject(entryViewModel)
-
-                // Bottom navigation with FAB only
-                BottomNavigation(
-                    onJournalCreate: {
-                        handleCreateEntry()
-                    }
-                )
-            }
-            .ignoresSafeArea(.all, edges: .bottom)
-            .navigationDestination(for: EntryRoute.self) { route in
-                switch route {
-                case .create:
-                    AddEntryView(state: .create) { title, text in
-                        entryViewModel.createEntry(title: title, text: text)
-                        navigationPath.removeLast()
-                    }
-                case .createWithTitle(let prefillTitle):
-                    AddEntryView(state: .createWithTitle(prefillTitle)) { title, text in
-                        entryViewModel.createEntry(title: title, text: text)
-                        navigationPath.removeLast()
-                    }
-                case .edit(let entry):
-                    AddEntryView(state: .edit(entry)) { title, text in
-                        var updated = entry
-                        updated.title = title
-                        updated.text = text
-                        entryViewModel.updateEntry(updated)
-                        navigationPath.removeLast()
-                    }
+        tabViewContent
+            .environmentObject(entryViewModel)
+            .environment(\.selectedTab, $selectedTab)
+            .useTheme()
+            .useTypography()
+            .onAppear {
+                if let tab = previewInitialTab, !didSetPreviewTab {
+                    selectedTab = tab
+                    didSetPreviewTab = true
                 }
             }
-            .navigationDestination(for: SettingsRoute.self) { route in
-                switch route {
-                case .main:
-                    SettingsView()
-                        .environmentObject(entryViewModel)
-                        .environmentObject(authViewModel)
-                case .profile:
-                    ProfileSettingsView()
-                case .appearance:
-                    AppearanceSettingsView()
-                case .about:
-                    AboutSettingsView()
-                }
-            }
-            .navigationDestination(for: AIChatRoute.self) { route in
-                switch route {
-                case .main:
-                    AIChatView()
-                        .toolbar(.hidden, for: .navigationBar)
-                }
-            }
-        }
-        .useTheme()
-        .useTypography()
-        // Note: Entry loading is deferred to JournalView for faster app launch
     }
 
-    // MARK: - Actions
+    @ViewBuilder
+    private var tabViewContent: some View {
+        if #available(iOS 26.0, *) {
+            TabView(selection: $selectedTab) {
+                JournalView()
+                    .id(0)
+                    .tabItem {
+                        Label("Journal", systemImage: "book.closed")
+                    }
+                    .tag(0)
 
-    /// Handles create entry action
-    private func handleCreateEntry() {
-        // Always allow entry creation
-        navigationPath.append(EntryRoute.create)
+                insightsTab
+                    .id(1)
+                    .tabItem {
+                        Label("Insights", systemImage: "sparkles")
+                    }
+                    .tag(1)
+            }
+            .tint(tabBarTint)
+            .tabViewStyle(.sidebarAdaptable)
+            .tabBarMinimizeBehavior(.onScrollDown)
+        } else if #available(iOS 18.0, *) {
+            TabView(selection: $selectedTab) {
+                JournalView()
+                    .id(0)
+                    .tabItem {
+                        Label("Journal", systemImage: "book.closed")
+                    }
+                    .tag(0)
+
+                insightsTab
+                    .id(1)
+                    .tabItem {
+                        Label("Insights", systemImage: "sparkles")
+                    }
+                    .tag(1)
+            }
+            .tint(tabBarTint)
+            .tabViewStyle(.sidebarAdaptable)
+        } else {
+            TabView(selection: $selectedTab) {
+                JournalView()
+                    .id(0)
+                    .tabItem {
+                        Label("Journal", systemImage: "book.closed")
+                    }
+                    .tag(0)
+
+                insightsTab
+                    .id(1)
+                    .tabItem {
+                        Label("Insights", systemImage: "sparkles")
+                    }
+                    .tag(1)
+            }
+            .tint(tabBarTint)
+        }
+    }
+
+    // MARK: - Insights Tab
+
+    private var insightsTab: some View {
+        InsightsView()
     }
 }
 
@@ -138,4 +145,15 @@ public struct ContentView: View {
     ContentView()
         .environmentObject(AuthViewModel())
         .preferredColorScheme(.dark)
+}
+
+#Preview("Insights tab with entries") {
+    @Previewable @StateObject var entryViewModel = EntryViewModel.withPreviewEntries()
+    ContentView()
+        .environment(\.previewEntryViewModel, entryViewModel)
+        .environment(\.previewInitialTab, 1)
+        .environment(\.previewSkipLoadEntries, true)
+        .environmentObject(AuthViewModel())
+        .useTheme()
+        .useTypography()
 }

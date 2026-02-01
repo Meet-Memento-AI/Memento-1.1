@@ -33,7 +33,7 @@ public struct ThemeCardFullScreen: View {
 
                 // Summary
                 Text(themeData.summary)
-                    .font(type.body)
+                    .font(type.body1)
                     .foregroundStyle(uiTheme.mutedForeground)
                     .multilineTextAlignment(.center)
                     .lineSpacing(6)
@@ -47,12 +47,12 @@ public struct ThemeCardFullScreen: View {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: 20))
                         Text("Selected")
-                            .font(type.bodyBold)
+                            .font(type.body1Bold)
                     }
                     .foregroundStyle(uiTheme.primary)
                 } else {
                     Text("Tap to select")
-                        .font(type.bodySmall)
+                        .font(type.body2)
                         .foregroundStyle(uiTheme.mutedForeground.opacity(0.6))
                 }
 

@@ -33,7 +33,7 @@ public struct JournalReviewIndicator: View {
         } label: {
             HStack(spacing: 6) {
                 Text("Reviewed \(reviewedCount) \(reviewedCount == 1 ? "journal" : "journals")")
-                    .font(type.bodySmall)
+                    .font(type.body2)
                     .foregroundStyle(theme.primary)
                 
                 Image(systemName: "chevron.right")
@@ -65,11 +65,11 @@ private struct JournalReviewDetailSheet: View {
                         .padding(.top, 8)
                     
                     Text("This feature will show detailed information about the \(reviewedCount) journal\(reviewedCount == 1 ? "" : "s") that have been reviewed by the AI.")
-                        .font(type.body)
+                        .font(type.body1)
                         .foregroundStyle(theme.mutedForeground)
                     
                     Text("Future implementation will include:")
-                        .font(type.bodyBold)
+                        .font(type.body1Bold)
                         .foregroundStyle(theme.foreground)
                         .padding(.top, 8)
                     
@@ -110,7 +110,7 @@ private struct DetailRow: View {
                 .foregroundStyle(theme.primary)
             
             Text(text)
-                .font(type.body)
+                .font(type.body1)
                 .foregroundStyle(theme.foreground)
         }
     }

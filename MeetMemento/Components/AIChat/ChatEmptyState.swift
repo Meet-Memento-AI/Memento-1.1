@@ -28,7 +28,7 @@ public struct ChatEmptyState: View {
                 .multilineTextAlignment(.center)
             
             Text("Let Memento help you introspect.")
-                .font(type.body)
+                .font(type.body1)
                 .foregroundStyle(GrayScale.gray600)
                 .multilineTextAlignment(.center)
         }

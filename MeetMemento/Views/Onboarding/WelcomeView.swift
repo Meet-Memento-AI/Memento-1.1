@@ -100,8 +100,10 @@ public struct WelcomeView: View {
                         showCreateAccountSheet = true
                     }
                 }
+                
             }
-            .padding()
+            .padding(.top)
+            .padding(.horizontal)
             .background(
                 ZStack {
                     if isDarkBackground {
@@ -120,11 +122,12 @@ public struct WelcomeView: View {
             )
             .animation(.easeInOut(duration: 0.6), value: carouselPage)
         }
+        .useTypography(Typography.onboarding)
         .onAppear {
             checkAndShowOnboarding()
         }
         .sheet(isPresented: $showCreateAccountSheet) {
-            CreateAccountBottomSheet(onSignUpSuccess: {
+            AuthBottomSheet(mode: .signUp, onSuccess: {
                 showCreateAccountSheet = false
             })
             .useTheme()
@@ -132,7 +135,7 @@ public struct WelcomeView: View {
             .environmentObject(authViewModel)
         }
         .sheet(isPresented: $showSignInSheet) {
-            SignInBottomSheet(onSignInSuccess: {
+            AuthBottomSheet(mode: .signIn, onSuccess: {
                 showSignInSheet = false
             })
             .useTheme()
@@ -142,7 +145,7 @@ public struct WelcomeView: View {
         .fullScreenCover(isPresented: $showOnboardingFlow) {
             OnboardingCoordinatorView()
                 .useTheme()
-                .useTypography()
+                .useTypography(Typography.onboarding)
                 .environmentObject(authViewModel)
         }
         .onChange(of: authViewModel.hasCompletedOnboarding) { _, newValue in
@@ -168,7 +171,7 @@ public struct WelcomeView: View {
                 .multilineTextAlignment(.center)
 
             Text(description)
-                .font(type.body)
+                .typographyBody1()
                 .foregroundStyle(isDark ? .white.opacity(0.8) : theme.mutedForeground)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 40)
@@ -194,7 +197,7 @@ private struct CarouselItem: Identifiable {
 #Preview("Welcome • Light") {
     WelcomeView()
         .useTheme()
-        .useTypography()
+        .useTypography(Typography.onboarding)
         .environmentObject(AuthViewModel())
         .preferredColorScheme(.light)
 }
@@ -202,7 +205,7 @@ private struct CarouselItem: Identifiable {
 #Preview("Welcome • Dark") {
     WelcomeView()
         .useTheme()
-        .useTypography()
+        .useTypography(Typography.onboarding)
         .environmentObject(AuthViewModel())
         .preferredColorScheme(.dark)
 }

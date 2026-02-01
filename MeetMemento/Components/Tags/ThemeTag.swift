@@ -21,8 +21,8 @@ public struct ThemeTag: View {
             onClick?()
         } label: {
             Text(text)
-                .font(type.bodyBold) // Manrope Bold from Typography.swift
-                .modifier(type.lineSpacingModifier(for: type.bodyL))
+                .font(type.body1Bold) // Manrope Bold from Typography.swift
+                .modifier(type.lineSpacingModifier(for: type.sizeLG))
                 .foregroundStyle(theme.foreground) // token: high-contrast text
                 .padding(.vertical, 10)
                 .padding(.horizontal, 16)

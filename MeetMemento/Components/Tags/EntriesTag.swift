@@ -12,16 +12,18 @@ import SwiftUI
 struct EntriesTag: View {
     let count: Int
 
+    @Environment(\.typography) private var type
+
     var body: some View {
         HStack(spacing: 8) {
             // Pen/notepad icon
             Image(systemName: "square.and.pencil")
-                .font(.system(size: 12, weight: .semibold))
+                .font(type.captionMedium)
                 .foregroundStyle(.white)
 
             // Count + "entries" text
             Text("\(count) entries")
-                .font(.system(size: 13, weight: .semibold))
+                .font(type.captionBold)
                 .foregroundStyle(.white)
         }
         .padding(.vertical, 6)
@@ -49,6 +51,7 @@ struct EntriesTag: View {
         }
         .padding(24)
     }
+    .useTypography()
 }
 
 #Preview("Multiple Sizes") {
@@ -67,4 +70,5 @@ struct EntriesTag: View {
         }
         .padding(24)
     }
+    .useTypography()
 }

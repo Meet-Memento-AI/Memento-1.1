@@ -12,18 +12,21 @@ public struct ChatInputField: View {
     @Binding var text: String
     var isSending: Bool
     var onSend: () -> Void
-    
+    /// When false, input and all buttons are disabled (e.g. carousel preview in WelcomeView).
+    var isInteractive: Bool = true
+
     @Environment(\.theme) private var theme
-    @Environment(\.typography) private var type
     @FocusState private var isFocused: Bool
-    
+
     public init(
         text: Binding<String>,
         isSending: Bool = false,
+        isInteractive: Bool = true,
         onSend: @escaping () -> Void
     ) {
         self._text = text
         self.isSending = isSending
+        self.isInteractive = isInteractive
         self.onSend = onSend
     }
 
@@ -50,7 +53,7 @@ public struct ChatInputField: View {
                         // Placeholder Text
                         if text.isEmpty {
                             Text("Chat with Memento")
-                                .font(type.input)
+                                .typographyBody1()
                                 .foregroundStyle(GrayScale.gray500)
                                 .padding(.leading, 16)
                                 .padding(.top, 16)
@@ -58,16 +61,16 @@ public struct ChatInputField: View {
                         
                         // TextField with top-aligned text
                         TextField("", text: $text, axis: .vertical)
-                            .font(type.input)
+                            .typographyBody1()
                             .foregroundStyle(theme.foreground)
                             .focused($isFocused)
                             .lineLimit(1...5)
                             .textInputAutocapitalization(.sentences)
                             .submitLabel(.send)
+                            .disabled(!isInteractive)
                             .onSubmit {
-                                if isSendButtonEnabled {
-                                    onSend()
-                                }
+                                guard isInteractive, isSendButtonEnabled else { return }
+                                onSend()
                             }
                             .padding(.leading, 16)
                             .padding(.trailing, text.isEmpty ? 100 : 52) // Shrink when mic is hidden
@@ -104,6 +107,7 @@ public struct ChatInputField: View {
             .padding(.trailing, 8)
             .padding(.bottom, 10) // Align center with single-line text (56/2 - 36/2 = 10)
         }
+        .allowsHitTesting(isInteractive)
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
     }
@@ -112,6 +116,7 @@ public struct ChatInputField: View {
     
     private var microphoneButton: some View {
         Button {
+            guard isInteractive else { return }
             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                 isRecording = true
             }
@@ -128,6 +133,7 @@ public struct ChatInputField: View {
     
     private var stopButton: some View {
         Button {
+            guard isInteractive else { return }
             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                 isRecording = false
             }
@@ -149,6 +155,7 @@ public struct ChatInputField: View {
     
     private var sendButton: some View {
         Button {
+            guard isInteractive else { return }
             onSend()
         } label: {
             ZStack {
@@ -172,7 +179,7 @@ public struct ChatInputField: View {
                     )
             )
         }
-        .disabled(!isSendButtonEnabled || isSending)
+        .disabled(!isInteractive || !isSendButtonEnabled || isSending)
         .animation(.easeInOut(duration: 0.2), value: isSendButtonEnabled)
     }
     

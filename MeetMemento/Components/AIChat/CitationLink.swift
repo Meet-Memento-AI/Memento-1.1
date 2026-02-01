@@ -27,21 +27,14 @@ public struct CitationLink: View {
             onTap?()
         } label: {
             HStack(spacing: 6) {
-                Image(systemName: "pencil.circle.fill")
-                    .font(.system(size: 11, weight: .semibold))
-
-                Text("\(count) journal citation\(count == 1 ? "" : "s")")
-                    .font(.system(size: 11, weight: .semibold))
+                Text("Reviewed \(count) journal\(count == 1 ? "" : "s")")
+                    .font(.system(size: 14, weight: .semibold))
                     .fontWeight(.semibold)
 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 12, weight: .semibold))
             }
             .foregroundStyle(theme.primary)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(theme.primary.opacity(0.1))
-            .clipShape(RoundedRectangle(cornerRadius: theme.radius.round, style: .continuous))
         }
         .buttonStyle(.plain)
     }

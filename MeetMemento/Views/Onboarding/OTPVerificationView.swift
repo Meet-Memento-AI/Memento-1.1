@@ -46,11 +46,11 @@ public struct OTPVerificationView: View {
 
                         VStack(alignment: .leading, spacing: 4) {
                             Text("We sent a 6-digit code to")
-                                .font(type.body)
+                                .font(type.body1)
                                 .foregroundStyle(theme.mutedForeground)
 
                             Text(email)
-                                .font(type.bodyBold)
+                                .font(type.body1Bold)
                                 .foregroundStyle(theme.primary)
                         }
                     }
@@ -62,7 +62,7 @@ public struct OTPVerificationView: View {
                     // OTP Code Input
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Verification code")
-                            .font(type.body)
+                            .font(type.body1)
                             .foregroundStyle(theme.foreground)
                             .fontWeight(.medium)
 
@@ -80,7 +80,7 @@ public struct OTPVerificationView: View {
                                 Image(systemName: "arrow.clockwise")
                                     .font(.system(size: 14))
                                 Text("Resend code")
-                                    .font(type.bodySmall)
+                                    .font(type.body2)
                             }
                             .foregroundStyle(theme.primary)
                         }
@@ -91,7 +91,7 @@ public struct OTPVerificationView: View {
                     // Resend success message
                     if !resendMessage.isEmpty {
                         Text(resendMessage)
-                            .font(type.bodySmall)
+                            .font(type.body2)
                             .foregroundStyle(.green)
                             .frame(maxWidth: .infinity, alignment: .trailing)
                     }
@@ -104,7 +104,7 @@ public struct OTPVerificationView: View {
                             .foregroundStyle(.red)
                             .font(.system(size: 14))
                         Text(errorMessage)
-                            .font(type.bodySmall)
+                            .font(type.body2)
                             .foregroundStyle(.red)
                     }
                     .padding(12)
@@ -147,7 +147,7 @@ public struct OTPVerificationView: View {
                             .tint(theme.primary)
 
                         Text("Thinking...")
-                            .font(type.body)
+                            .font(type.body1)
                             .foregroundStyle(theme.foreground)
                     }
                 }
@@ -186,7 +186,7 @@ public struct OTPVerificationView: View {
 
         Task {
             do {
-                try await authViewModel.verifyOTP(code: otpCode)
+                try await authViewModel.verifyOTP(code: otpCode, isSignUp: isSignUp)
 
                 await MainActor.run {
                     isVerifying = false

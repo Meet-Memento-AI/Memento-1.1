@@ -52,7 +52,7 @@ public struct TopNav: View {
 
             case .single:
                 Text("Your Insights")
-                    .font(type.bodyBold)
+                    .font(type.body1Bold)
                     .foregroundStyle(theme.primary)
                     .padding(.horizontal, hitPadding)
                     .contentShape(Rectangle())
@@ -60,7 +60,7 @@ public struct TopNav: View {
 
             case .singleSelected:
                 Text("Your Insights")
-                    .font(type.bodyBold)
+                    .font(type.body1Bold)
                     .foregroundStyle(theme.primary)
                     .padding(.horizontal, hitPadding)
                     .contentShape(Rectangle())
@@ -94,7 +94,7 @@ public struct TopNav: View {
             selection = tab
         } label: {
             Text(tab.title)
-                .font(type.bodyBold)
+                .font(type.body1Bold)
                 .foregroundStyle(
                     // White text if selected OR if Insights tab is active (for visibility on purple background)
                     isSelected || selection == .digDeeper

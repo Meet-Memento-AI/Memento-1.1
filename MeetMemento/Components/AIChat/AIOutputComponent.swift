@@ -39,7 +39,6 @@ public struct AIOutputComponent: View {
     var animate: Bool
     var onCitationsTapped: (() -> Void)?
 
-    @Environment(\.theme) private var theme
     @Environment(\.typography) private var type
 
     @State private var displayedHeading1 = ""
@@ -51,6 +50,16 @@ public struct AIOutputComponent: View {
 
     // Fast typing speed like ChatGPT (characters per second)
     private let charactersPerSecond: Double = 120
+
+    /// Stable value that changes when content changes; used with onChange to avoid relying on AIOutputContent Equatable synthesis.
+    private var contentIdentity: String {
+        [
+            content.heading1 ?? "",
+            content.heading2 ?? "",
+            content.body,
+            String(content.citations?.count ?? 0)
+        ].joined(separator: "\u{0}")
+    }
 
     public init(
         content: AIOutputContent,
@@ -64,25 +73,31 @@ public struct AIOutputComponent: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+        
+            // Citation link: appears first with a quick, sudden appearance
+            if let citations = content.citations, !citations.isEmpty {
+                CitationLink(count: citations.count, onTap: onCitationsTapped)
+                    .opacity(showCitation ? 1 : 0)
+                    .animation(.easeOut(duration: 0.12), value: showCitation)
+            }
             
-            
-            // Heading 1 (if provided) - Using Manrope
+            // Heading 1 (if provided)
             if let heading1 = content.heading1, !heading1.isEmpty {
                 if !displayedHeading1.isEmpty || !animate {
                     Text(animate ? displayedHeading1 : heading1)
-                        .font(.custom("Manrope-Bold", size: 24))
+                        .font(type.h3)
                         .foregroundStyle(GrayScale.gray900)
-                        .modifier(type.headingLineSpacingModifier(for: 20))
+                        .modifier(type.headingLineSpacingModifier(for: type.size2XL))
                 }
             }
 
-            // Heading 2 (if provided) - Using Manrope
+            // Heading 2 (if provided)
             if let heading2 = content.heading2, !heading2.isEmpty {
                 if !displayedHeading2.isEmpty || !animate {
                     Text(animate ? displayedHeading2 : heading2)
-                        .font(.custom("Manrope-Bold", size: 18))
+                        .font(type.h4)
                         .foregroundStyle(GrayScale.gray900)
-                        .modifier(type.headingLineSpacingModifier(for: 16))
+                        .modifier(type.headingLineSpacingModifier(for: type.sizeXL))
                         .padding(.top, (content.heading1?.isEmpty == false) ? 4 : 0)
                 }
             }
@@ -90,16 +105,9 @@ public struct AIOutputComponent: View {
             // Body text with typewriter effect
             if !displayedBody.isEmpty || !animate {
                 Text(LocalizedStringKey(animate ? displayedBody : content.body))
-                    .font(.custom("Manrope-Medium", size: 16))
+                    .font(type.body1)
                     .foregroundStyle(GrayScale.gray700)
-                    .lineSpacing(4) // 16 + 4 = 20pt line height
-            }
-
-            // Citation link with fade-in dissolve
-            if let citations = content.citations, !citations.isEmpty {
-                CitationLink(count: citations.count, onTap: onCitationsTapped)
-                    .opacity(showCitation ? 1 : 0)
-                    .animation(.easeInOut(duration: 0.4), value: showCitation)
+                    .lineSpacing(type.bodyLineSpacing)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -110,7 +118,7 @@ public struct AIOutputComponent: View {
                 showAllContent()
             }
         }
-        .onChange(of: content) { _, _ in
+        .onChange(of: contentIdentity) { _, _ in
             if animate {
                 resetAnimation()
                 startTypewriterSequence()
@@ -144,6 +152,11 @@ public struct AIOutputComponent: View {
     private func startTypewriterSequence() {
         guard !isAnimating else { return }
         isAnimating = true
+
+        // Citation appears first, quick and sudden
+        if content.citations != nil, !(content.citations?.isEmpty ?? true) {
+            showCitation = true
+        }
 
         let interval = 1.0 / charactersPerSecond
         var totalDelay: Double = 0
@@ -179,9 +192,8 @@ public struct AIOutputComponent: View {
         }
         totalDelay += Double(bodyCharacters.count) * interval
 
-        // Phase 4: Fade in citation button
-        DispatchQueue.main.asyncAfter(deadline: .now() + totalDelay + 0.2) {
-            showCitation = true
+        // Typewriter complete
+        DispatchQueue.main.asyncAfter(deadline: .now() + totalDelay + 0.05) {
             isAnimating = false
             hasAnimated = true
         }

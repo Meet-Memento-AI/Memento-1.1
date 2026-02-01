@@ -12,10 +12,11 @@ struct JournalCard: View {
     var onTap: (() -> Void)? = nil
     var onEditTapped: (() -> Void)? = nil
     var onDeleteTapped: (() -> Void)? = nil
-    
+    /// When false, all gestures and context menu are disabled (e.g. carousel preview in WelcomeView).
+    var isInteractive: Bool = true
+
     // MARK: - Environment
     @Environment(\.theme) private var theme
-    @Environment(\.typography) private var type
      
     // MARK: - State
     @State private var isPressed = false
@@ -23,47 +24,47 @@ struct JournalCard: View {
     // MARK: - Body
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            VStack(alignment: .leading, spacing: 12) {
-                header
+            // Title
+            header
+                .hPadding(Spacing.md)
+                .padding(.top, Spacing.md)
 
-                Text(excerpt)
-                    .font(type.bodySmall)
-                    .foregroundStyle(theme.mutedForeground)
-                    .lineLimit(3)
-                    .multilineTextAlignment(.leading)
+            // Excerpt
+            Text(excerpt)
+                .typographyBody2()
+                .foregroundStyle(theme.mutedForeground)
+                .lineLimit(3)
+                .multilineTextAlignment(.leading)
+                .hPadding(Spacing.md)
+                .padding(.top, Spacing.sm)
+                .padding(.bottom, Spacing.md)
 
-                footer
-            }
-            .padding(.vertical, 20)
-            .padding(.horizontal, 20)
+            // Divider
+            Divider()
+                .background(theme.border)
+
+            // Footer/Date
+            footer
+                .hPadding(Spacing.md)
+                .vPadding(Spacing.md)
         }
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(theme.cardBackground)
-        )
-        .scaleEffect(isPressed ? 0.98 : 1.0)
-        .animation(.easeInOut(duration: 0.1), value: isPressed)
+        .cardStyle(radius: 24, border: false, shadow: false)
+        .pressEffect(isPressed: $isPressed, scale: 0.98, duration: Spacing.Duration.fast)
         .contentShape(Rectangle())
         .onTapGesture {
-            // Add haptic feedback for better user experience
+            guard isInteractive else { return }
             let impactFeedback = UIImpactFeedbackGenerator(style: .light)
             impactFeedback.impactOccurred()
             onTap?()
         }
         .onLongPressGesture(minimumDuration: 0, maximumDistance: .infinity, pressing: { pressing in
+            guard isInteractive else { return }
             withAnimation(.easeInOut(duration: 0.1)) {
                 isPressed = pressing
             }
         }, perform: {})
-        .contextMenu {
-            Button(action: { onEditTapped?() }) {
-                Label("Edit", systemImage: "pencil")
-            }
-
-            Button(role: .destructive, action: { onDeleteTapped?() }) {
-                Label("Delete", systemImage: "trash")
-            }
-        }
+        .modifier(JournalCardContextMenuModifier(isInteractive: isInteractive, onEditTapped: onEditTapped, onDeleteTapped: onDeleteTapped))
+        .allowsHitTesting(isInteractive)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityLabel)
     }
@@ -71,7 +72,7 @@ struct JournalCard: View {
     // MARK: - Subviews
     private var header: some View {
         Text(title)
-            .font(type.h4) // Sora heading font for prominence
+            .typographyH5()
             .foregroundStyle(theme.foreground)
             .lineLimit(2)
             .multilineTextAlignment(.leading)
@@ -81,10 +82,13 @@ struct JournalCard: View {
     private var footer: some View {
         HStack(spacing: 8) {
             Image(systemName: "calendar")
-                .imageScale(.small)
-                .foregroundStyle(theme.mutedForeground)
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(theme.primary)
+                .padding(4)
+                .background(PrimaryScale.primary50)
+                .cornerRadius(16)
             Text(formattedDate)
-                .font(type.bodySmall)
+                .typographyCaptionBold()
                 .foregroundStyle(theme.mutedForeground)
             Spacer()
         }
@@ -95,26 +99,34 @@ struct JournalCard: View {
     // MARK: - Date Formatting
     private var formattedDate: String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d"
-
-        // Add ordinal suffix (st, nd, rd, th)
-        let day = Calendar.current.component(.day, from: date)
-        let suffix: String
-        switch day {
-        case 1, 21, 31: suffix = "st"
-        case 2, 22: suffix = "nd"
-        case 3, 23: suffix = "rd"
-        default: suffix = "th"
-        }
-
-        let year = Calendar.current.component(.year, from: date)
-        let month = formatter.string(from: date)
-
-        return "\(month)\(suffix), \(year)"
+        formatter.dateFormat = "MMMM, yyyy"
+        return formatter.string(from: date)
     }
 
     private var accessibilityLabel: String {
         "Journal card, \(title). Dated \(formattedDate). \(excerpt)"
+    }
+}
+
+// MARK: - Context menu only when interactive
+private struct JournalCardContextMenuModifier: ViewModifier {
+    let isInteractive: Bool
+    var onEditTapped: (() -> Void)?
+    var onDeleteTapped: (() -> Void)?
+
+    func body(content: Content) -> some View {
+        if isInteractive {
+            content.contextMenu {
+                Button(action: { onEditTapped?() }) {
+                    Label("Edit", systemImage: "pencil")
+                }
+                Button(role: .destructive, action: { onDeleteTapped?() }) {
+                    Label("Delete", systemImage: "trash")
+                }
+            }
+        } else {
+            content
+        }
     }
 }
 
@@ -128,12 +140,12 @@ extension JournalCard {
 // Keep previews in the same file for convenience, or move into `JournalCard+Preview.swift`.
 // Import NOTHING from your app target here besides SwiftUI and this view file.
 private struct JournalCardHarness: View {
-    // Create Oct 3rd, 2025 date for preview
+    // Create January 2026 date for preview
     private var previewDate: Date {
         var components = DateComponents()
-        components.year = 2025
-        components.month = 10
-        components.day = 3
+        components.year = 2026
+        components.month = 1
+        components.day = 15
         return Calendar.current.date(from: components) ?? .now
     }
 

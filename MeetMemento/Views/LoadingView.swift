@@ -46,7 +46,7 @@ struct LoadingView: View {
 
                         // Status message with modern styling
                         Text(loadingPhase.message)
-                            .font(type.body)
+                            .font(type.body1)
                             .foregroundStyle(theme.foreground)
                             .transition(.opacity.combined(with: .scale(scale: 0.95)))
                             .id(loadingPhase)
@@ -231,11 +231,11 @@ private struct TipCard: View {
             // Content
             VStack(alignment: .leading, spacing: 6) {
                 Text(title)
-                    .font(type.bodyBold)
+                    .font(type.body1Bold)
                     .foregroundStyle(theme.foreground)
 
                 Text(message)
-                    .font(type.body)
+                    .font(type.body1)
                     .foregroundStyle(theme.mutedForeground)
                     .fixedSize(horizontal: false, vertical: true)
             }

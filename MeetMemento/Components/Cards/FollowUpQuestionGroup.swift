@@ -107,7 +107,7 @@ struct FollowUpQuestionGroup: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 32) {
                 Text("Your Reflections")
-                    .font(.system(size: 24, weight: .bold))
+                    .font(Typography().h3)
                     .foregroundStyle(.white)
                     .padding(.horizontal, 20)
                     .padding(.top, 20)

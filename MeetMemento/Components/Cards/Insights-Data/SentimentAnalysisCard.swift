@@ -17,7 +17,6 @@ struct SentimentAnalysisCard: View {
 
     // MARK: - Environment
     @Environment(\.theme) private var theme
-    @Environment(\.typography) private var type
 
     // MARK: - Computed
     private var total: Double {
@@ -39,11 +38,11 @@ struct SentimentAnalysisCard: View {
             // Header with sparkles icon
             HStack(spacing: 8) {
                 Image(systemName: "sparkles")
-                    .font(.system(size: 14, weight: .bold))
+                    .typographyBody2Bold()
                     .foregroundStyle(.white)
 
                 Text("SENTIMENT ANALYSIS")
-                    .font(type.captionBold)
+                    .typographyCaptionBold()
                     .tracking(0.5)
                     .foregroundStyle(.white)
 
@@ -76,7 +75,7 @@ struct SentimentAnalysisCard: View {
 
                         // Emotion label
                         Text(label)
-                            .font(.system(size: 16, weight: .regular))
+                            .typographyBody1()
                             .foregroundStyle(.white)
 
                         Spacer()
@@ -84,7 +83,7 @@ struct SentimentAnalysisCard: View {
                         // Optional percentage
                         if showPercentages {
                             Text("\(percentage(for: emotionValues[index]))%")
-                                .font(.system(size: 16, weight: .semibold))
+                                .typographyBody1()
                                 .foregroundStyle(.white.opacity(0.8))
                         }
                     }

@@ -2,7 +2,6 @@ import SwiftUI
 
 public struct PrimaryButton: View {
     @Environment(\.theme) private var theme
-    @Environment(\.typography) private var type
 
     let title: String
     var systemImage: String? = nil
@@ -27,7 +26,7 @@ public struct PrimaryButton: View {
             HStack(spacing: 8) {
                 if let systemImage { Image(systemName: systemImage) }
                 Text(title)
-                    .font(type.button)
+                    .typographyH5()
                 if isLoading { ProgressView().tint(theme.primaryForeground) }
             }
             .padding(.vertical, 12)
