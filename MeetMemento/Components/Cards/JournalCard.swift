@@ -26,29 +26,24 @@ struct JournalCard: View {
         VStack(alignment: .leading, spacing: 0) {
             // Title
             header
-                .hPadding(Spacing.md)
-                .padding(.top, Spacing.md)
+                .hPadding(Spacing.lg)
+                .padding(.top, Spacing.lg)
 
             // Excerpt
             Text(excerpt)
                 .typographyBody2()
                 .foregroundStyle(theme.mutedForeground)
-                .lineLimit(3)
+                .lineLimit(7)
                 .multilineTextAlignment(.leading)
-                .hPadding(Spacing.md)
+                .hPadding(Spacing.lg)
                 .padding(.top, Spacing.sm)
-                .padding(.bottom, Spacing.md)
-
-            // Divider
-            Divider()
-                .background(theme.border)
 
             // Footer/Date
             footer
-                .hPadding(Spacing.md)
+                .hPadding(Spacing.lg)
                 .vPadding(Spacing.md)
         }
-        .cardStyle(radius: 24, border: false, shadow: false)
+        .cardStyle(radius: 24, border: false, shadow: false, backgroundColor: GrayScale.gray100)
         .pressEffect(isPressed: $isPressed, scale: 0.98, duration: Spacing.Duration.fast)
         .contentShape(Rectangle())
         .onTapGesture {
@@ -85,7 +80,6 @@ struct JournalCard: View {
                 .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(theme.primary)
                 .padding(4)
-                .background(PrimaryScale.primary50)
                 .cornerRadius(16)
             Text(formattedDate)
                 .typographyCaptionBold()
@@ -98,9 +92,26 @@ struct JournalCard: View {
 
     // MARK: - Date Formatting
     private var formattedDate: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMMM, yyyy"
-        return formatter.string(from: date)
+        let calendar = Calendar.current
+        let day = calendar.component(.day, from: date)
+        let monthFormatter = DateFormatter()
+        monthFormatter.dateFormat = "MMMM"
+        let monthName = monthFormatter.string(from: date)
+
+        return "\(monthName) \(day)\(ordinalSuffix(for: day))"
+    }
+
+    private func ordinalSuffix(for day: Int) -> String {
+        switch day {
+        case 1, 21, 31:
+            return "st"
+        case 2, 22:
+            return "nd"
+        case 3, 23:
+            return "rd"
+        default:
+            return "th"
+        }
     }
 
     private var accessibilityLabel: String {

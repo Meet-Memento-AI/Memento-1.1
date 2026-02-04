@@ -191,6 +191,6 @@ private struct PinEntryPreview: View {
         }
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(hex: "#EFEFEF"))
+        .background(.white)
     }
 }

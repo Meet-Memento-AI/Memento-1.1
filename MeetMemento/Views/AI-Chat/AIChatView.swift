@@ -18,67 +18,45 @@ public struct AIChatView: View {
     @State private var reviewedJournalCount: Int = 5 // Mock data
     @State private var selectedCitations: [JournalCitation]? = nil
     @State private var showCitationsSheet = false
-    @FocusState private var isInputFocused: Bool
+    @State private var inputAreaHeight: CGFloat = 104
 
     private static let defaultSuggestions: [String] = [
-        "What patterns do you see in my recent entries?",
-        "Summarize my week in one sentence.",
-        "Suggest one intention for next week."
+        "Analyze my current mindset from my journal activity in the past week",
+        "Explore the themes we've talked about from my journals about my friendships.",
+        "Summarize my journal entries in the last month"
     ]
 
     public init() {}
     
     public var body: some View {
-        VStack(spacing: 0) {
-            // Messages list
+        ZStack(alignment: .bottom) {
+            // Messages list - extends full screen
             messagesScrollView
-
-            // Input area
-            inputArea
+                .padding(.bottom, inputAreaHeight) // Exact padding to prevent overlap
+            
+            // Floating input area with glass-like effect
+            floatingInputArea
         }
-        .background(
-            ZStack(alignment: .bottom) {
-                Color.clear
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            colors: [
-                                PrimaryScale.primary300.opacity(0.08),
-                                PrimaryScale.primary700.opacity(0.08)
-                            ],
-                            center: .center,
-                            startRadius: 0,
-                            endRadius: 250
-                        )
-                    )
-                    .frame(width: 500, height: 500)
-                    .offset(y: 80)
-                    .blur(radius: 100)
-                    .opacity(messages.isEmpty ? 1 : 0)
-                    .animation(.easeOut(duration: 0.35), value: messages.isEmpty)
-            }
-            .ignoresSafeArea()
-        )
-        .background(theme.background.ignoresSafeArea())
-        .background(SwipeBackEnabler().frame(width: 1, height: 1))
+        .background(.white)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
         .toolbar {
+            // Top navigation with glass-like effect
             ToolbarItem(placement: .navigationBarLeading) {
                 Button {
                     UIImpactFeedbackGenerator(style: .light).impactOccurred()
                     dismiss()
                 } label: {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(theme.foreground)
+                        .font(.system(size: 16, weight: .semibold))
                 }
+                .frame(width: 40, height: 40)
+                .clipShape(Circle())
+                .shadow(color: .black.opacity(0.08), radius: 2, x: 0, y: 0)
                 .accessibilityLabel("Back")
             }
         }
-        .onTapGesture {
-            dismissKeyboard()
-        }
+        .toolbarBackground(.hidden, for: .navigationBar) // Hide default toolbar background
         .onAppear {
             loadInitialState()
         }
@@ -96,23 +74,38 @@ public struct AIChatView: View {
             ScrollView {
                 LazyVStack(spacing: 16) {
                     if messages.isEmpty && !isSending {
-                        VStack(alignment: .leading, spacing: 0) {
-                            ChatEmptyState()
+                        VStack(alignment: .leading, spacing: 24) {
+                            Spacer().frame(height: 80)
+
+                            // Memento icon — left 32/132 of logo SVG rendered at 44pt height
+                            Image("Memento-Logo")
+                                .resizable()
+                                .frame(width: 176, height: 44)
+                                .frame(width: 44, alignment: .leading)
+                                .clipped()
+                                .padding(.leading, 20)
+
+                            // Welcome message
+                            Text("Welcome John, let's dive deeper into your journal")
+                                .font(type.h3)
+                                .foregroundStyle(GrayScale.gray900)
+                                .multilineTextAlignment(.leading)
+                                .padding(.horizontal, 20)
+
+                            // Suggestion cards — horizontal scroll
                             ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(alignment: .top, spacing: 12) {
+                                HStack(spacing: 12) {
                                     ForEach(Self.defaultSuggestions, id: \.self) { suggestion in
                                         AISuggestionCard(suggestion: suggestion) {
                                             sendMessage(prompt: suggestion)
                                         }
                                     }
                                 }
-                                .padding(16)
-
+                                .padding(.leading, 20)
                             }
-                            .frame(height: 200)
+                            .frame(maxWidth: .infinity)
                         }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .padding(.top, 100)
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
                         .id("empty")
                     } else {
                         VStack(alignment: .leading, spacing: 16) {
@@ -141,7 +134,7 @@ public struct AIChatView: View {
                         .padding(16)
                     }
                 }
-                .padding(.bottom, 16)
+                .padding(.bottom, 16) // Standard bottom padding
                 .padding(.top, 16) // Standard top padding with native navigation
             }
             .onChange(of: messages.count) { oldCount, newCount in
@@ -157,6 +150,9 @@ public struct AIChatView: View {
                      }
                 }
             }
+            .onTapGesture {
+                dismissKeyboard()
+            }
         }
     }
     
@@ -170,19 +166,14 @@ public struct AIChatView: View {
 
     // ... (skipping JournalReviewIndicator as it is unchanged)
 
-    // MARK: - Input Area
-    
-    private var inputArea: some View {
+    // MARK: - Floating Input Area
+
+    private var floatingInputArea: some View {
         VStack(spacing: 0) {
-            ChatInputField(
-                text: $inputText,
-                isSending: isSending,
-                onSend: { sendMessage() }
-            )
+            ChatInputField(text: $inputText, isSending: isSending, onSend: { sendMessage() })
         }
-        .background(.clear)
     }
-    
+
     // MARK: - Actions
 
     private func regenerateResponse(for messageId: UUID) {
@@ -220,7 +211,6 @@ public struct AIChatView: View {
 
         if prompt == nil {
             inputText = ""
-            isInputFocused = false
         }
 
         // Simulate AI response (remove when backend is ready)
@@ -300,22 +290,19 @@ public struct AIChatView: View {
     .preferredColorScheme(.dark)
 }
 
-// MARK: - Swipe Back Enabler
-// Helper to re-enable the interactive pop gesture when the navigation bar is hidden
-private struct SwipeBackEnabler: UIViewControllerRepresentable {
-    func makeUIViewController(context: Context) -> UIViewController {
-        UIViewController()
-    }
+// MARK: - Glass-like Effect Extension
+// Fallback for iOS versions that don't support glassEffect
 
-    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {
-        // Re-enable the interactive pop gesture recognizer
-        DispatchQueue.main.async {
-            uiViewController.navigationController?.interactivePopGestureRecognizer?.delegate = nil
-            uiViewController.navigationController?.interactivePopGestureRecognizer?.isEnabled = true
-        }
+extension View {
+    @ViewBuilder
+    func glassLikeEffect(in shape: some Shape = Capsule()) -> some View {
+        self.background(.regularMaterial, in: shape)
+            .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
     }
     
-    private func dismissKeyboard() {
-        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    @ViewBuilder
+    func glassLikeEffect(cornerRadius: CGFloat) -> some View {
+        self.background(.regularMaterial, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
     }
 }

@@ -161,12 +161,12 @@ struct Theme {
     // MARK: - Palettes
 
     static let light = Theme(
-        background: BaseColors.offWhite,
+        background: BaseColors.white,
         foreground: GrayScale.gray900,
-        card: BaseColors.offWhite,
+        card: BaseColors.white,
         cardForeground: GrayScale.gray900,
         cardBackground: BaseColors.white,
-        popover: BaseColors.offWhite,
+        popover: BaseColors.white,
         popoverForeground: GrayScale.gray900,
         primary: PrimaryScale.primary500,
         primaryForeground: BaseColors.white,
@@ -206,7 +206,7 @@ struct Theme {
         insightsBackgroundStart: PrimaryScale.primary900,
         insightsBackgroundEnd: PrimaryScale.primary900,
 
-        sidebar: BaseColors.offWhite,
+        sidebar: BaseColors.white,
         sidebarForeground: GrayScale.gray900,
         sidebarPrimary: PrimaryScale.primary500,
         sidebarPrimaryForeground: BaseColors.white,
@@ -234,7 +234,7 @@ struct Theme {
         accentForeground: GrayScale.gray900,
         destructive: Color(hex: "#FF4D6A"),
         destructiveForeground: GrayScale.gray50,
-        border: GrayScale.gray700,
+        border: GrayScale.gray300,
         input: GrayScale.gray700,
         inputBackground: GrayScale.gray800,
         switchBackground: GrayScale.gray600,

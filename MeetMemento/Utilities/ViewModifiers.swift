@@ -17,9 +17,10 @@ extension View {
     ///   - radius: Corner radius (default: 24)
     ///   - border: Whether to show border (default: false)
     ///   - shadow: Whether to show shadow (default: true)
+    ///   - backgroundColor: Optional background color (defaults to theme.cardBackground)
     /// - Returns: Styled view with card appearance
-    func cardStyle(radius: CGFloat = 24, border: Bool = false, shadow: Bool = true) -> some View {
-        modifier(CardStyleModifier(cornerRadius: radius, showBorder: border, showShadow: shadow))
+    func cardStyle(radius: CGFloat = 24, border: Bool = false, shadow: Bool = true, backgroundColor: Color? = nil) -> some View {
+        modifier(CardStyleModifier(cornerRadius: radius, showBorder: border, showShadow: shadow, backgroundColor: backgroundColor))
     }
 }
 
@@ -29,12 +30,13 @@ private struct CardStyleModifier: ViewModifier {
     let cornerRadius: CGFloat
     let showBorder: Bool
     let showShadow: Bool
+    let backgroundColor: Color?
 
     func body(content: Content) -> some View {
         content
             .background(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(theme.cardBackground)
+                    .fill(backgroundColor ?? theme.cardBackground)
             )
             .overlay(
                 Group {
@@ -45,6 +47,7 @@ private struct CardStyleModifier: ViewModifier {
                 }
             )
             .shadow(
+                color: showShadow ? .black.opacity(0.1) : .clear,
                 radius: showShadow ? 8 : 0,
                 x: 0,
                 y: showShadow ? 4 : 0

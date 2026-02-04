@@ -96,7 +96,7 @@ struct IconButtonPressStyle: ButtonStyle {
 
 #Preview("Light Background") {
     ZStack {
-        Color(hex: "#EFEFEF")
+        Color.white
             .ignoresSafeArea()
 
         VStack(spacing: 24) {
@@ -183,7 +183,7 @@ struct IconButtonPressStyle: ButtonStyle {
 
 #Preview("Various Sizes") {
     ZStack {
-        Color(hex: "#EFEFEF")
+        Color.white
             .ignoresSafeArea()
 
         HStack(spacing: 20) {
