@@ -11,17 +11,28 @@ struct YourEntriesView: View {
     @ObservedObject var entryViewModel: EntryViewModel
     @State private var showDeleteConfirmation: Bool = false
     @State private var entryToDelete: Entry?
+    @State private var lastScrollOffset: CGFloat = 0
+    @StateObject private var scrollDebouncer = ScrollDebouncer(delay: 0.1)
 
+    private let scrollThreshold: CGFloat = 50
+
+    let monthGroups: [MonthGroup]
+    let onMonthVisibilityChanged: ((Date) -> Void)?
     let onNavigateToEntry: (EntryRoute) -> Void
 
     @Environment(\.theme) private var theme
     @Environment(\.typography) private var type
+    @Environment(\.tabBarHidden) private var tabBarHidden
 
     init(
         entryViewModel: EntryViewModel,
+        monthGroups: [MonthGroup],
+        onMonthVisibilityChanged: ((Date) -> Void)? = nil,
         onNavigateToEntry: @escaping (EntryRoute) -> Void
     ) {
         self.entryViewModel = entryViewModel
+        self.monthGroups = monthGroups
+        self.onMonthVisibilityChanged = onMonthVisibilityChanged
         self.onNavigateToEntry = onNavigateToEntry
     }
 
@@ -109,10 +120,20 @@ struct YourEntriesView: View {
                 .font(type.h3)
                 .fontWeight(.semibold)
                 .foregroundStyle(GrayScale.gray900)
+                .padding(.top, 16)
 
             Text("Start writing your first entry to see it here.")
                 .font(type.body1)
                 .foregroundStyle(theme.mutedForeground)
+
+            PrimaryButton(
+                title: "Create your first entry",
+                systemImage: "square.and.pencil"
+            ) {
+                onNavigateToEntry(.create)
+            }
+            .padding(.top, 24)
+            .padding(.horizontal, 32)
 
             Spacer()
         }
@@ -121,8 +142,23 @@ struct YourEntriesView: View {
     }
 
     private var entriesList: some View {
-        ScrollView {
+        ScrollView(.vertical, showsIndicators: true) {
             LazyVStack(spacing: 32, pinnedViews: []) {
+                // Page title
+                Text("Your journal entries")
+                    .font(type.h3)
+                    .foregroundStyle(theme.foreground)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                // Welcome header
+                if !entryViewModel.userFirstName.isEmpty {
+                    Text("Welcome, \(entryViewModel.userFirstName)")
+                        .font(type.h3)
+                        .foregroundStyle(theme.foreground)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.bottom, 8)
+                }
+
                 // Show error banner if there's an error (but we have cached entries)
                 if let errorMessage = entryViewModel.errorMessage {
                     HStack(spacing: 12) {
@@ -145,22 +181,8 @@ struct YourEntriesView: View {
                 }
 
                 // Month groups - entries organized by month
-                ForEach(entryViewModel.entriesByMonth) { monthGroup in
+                ForEach(monthGroups) { monthGroup in
                     VStack(alignment: .leading, spacing: 16) {
-                        // Month header
-                        HStack {
-                            Text(monthGroup.monthLabel)
-                                .font(type.h4)
-                                .foregroundStyle(theme.foreground)
-
-                            Spacer()
-
-                            Text("\(monthGroup.entryCount) \(monthGroup.entryCount == 1 ? "entry" : "entries")")
-                                .font(type.body1)
-                                .foregroundStyle(theme.mutedForeground)
-                        }
-                        .padding(.horizontal, 4)
-
                         // Entries for this month
                         VStack(spacing: 16) {
                             ForEach(monthGroup.entries) { entry in
@@ -187,14 +209,46 @@ struct YourEntriesView: View {
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.top, 16) // Standard top padding with native navigation
+            .padding(.top, 16) // 16px base padding (header adds 16px more = 32px total)
             .padding(.bottom, 20) // Bottom padding for scrolling
+            .background(
+                GeometryReader { geometry in
+                    Color.clear
+                        .preference(
+                            key: ScrollOffsetPreferenceKey.self,
+                            value: geometry.frame(in: .named("scroll")).minY
+                        )
+                }
+            )
         }
-        .refreshable {
-            // Pull-to-refresh - force reload even if already loaded
-            await entryViewModel.refreshEntries()
+        .coordinateSpace(name: "scroll")
+        .onPreferenceChange(ScrollOffsetPreferenceKey.self) { value in
+            // Only apply tracking on iOS 18, not iOS 26+
+            if #available(iOS 26.0, *) {
+                // Native behavior - do nothing
+            } else if let binding = tabBarHidden {
+                scrollDebouncer.debounce {
+                    self.updateTabBarVisibility(scrollOffset: value, binding: binding)
+                }
+            }
         }
     }
+
+    private func updateTabBarVisibility(scrollOffset: CGFloat, binding: Binding<Bool>) {
+        let delta = scrollOffset - lastScrollOffset
+
+        // Scrolling down (negative delta) - hide tab bar
+        if delta < -scrollThreshold && !binding.wrappedValue {
+            binding.wrappedValue = true
+        }
+        // Scrolling up (positive delta) - show tab bar
+        else if delta > scrollThreshold && binding.wrappedValue {
+            binding.wrappedValue = false
+        }
+
+        lastScrollOffset = scrollOffset
+    }
+
 }
 
 // MARK: - Previews
@@ -204,6 +258,7 @@ struct YourEntriesView: View {
 
     YourEntriesView(
         entryViewModel: viewModel,
+        monthGroups: [],
         onNavigateToEntry: { _ in }
     )
     .onAppear {
@@ -218,6 +273,7 @@ struct YourEntriesView: View {
 
     YourEntriesView(
         entryViewModel: viewModel,
+        monthGroups: viewModel.entriesByMonth,
         onNavigateToEntry: { _ in }
     )
     .onAppear {

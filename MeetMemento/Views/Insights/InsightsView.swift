@@ -16,6 +16,8 @@ public struct InsightsView: View {
     @Environment(\.theme) private var theme
     @Environment(\.typography) private var type
     @Environment(\.selectedTab) private var selectedTab
+    @Environment(\.showAccessory) private var showAccessory
+    @Environment(\.tabBarHidden) private var tabBarHidden
     @Environment(\.previewInsightContent) private var previewInsightContent
     @Environment(\.previewInsightEntriesCount) private var previewInsightEntriesCount
     @Environment(\.previewForceLoadingState) private var previewForceLoadingState
@@ -49,6 +51,13 @@ public struct InsightsView: View {
     @State private var isShowingHeadlineSkeleton = true
     @State private var displayedHeadline = ""
     @State private var hasAnimated = false
+    @State private var animationTask: Task<Void, Never>?
+
+    // Scroll tracking state
+    @State private var lastScrollOffset: CGFloat = 0
+    @StateObject private var scrollDebouncer = ScrollDebouncer(delay: 0.1)
+
+    private let scrollThreshold: CGFloat = 50
 
     // Data state - fetched from API or restored from cache
     @State private var insight: InsightContent?
@@ -58,6 +67,9 @@ public struct InsightsView: View {
 
     // Cache: one insight per month (key: "yyyy-MM"). API is only called on pull-to-refresh or date change.
     @State private var insightCache: [String: CachedInsight] = [:]
+
+    // Cache size limit to prevent unbounded memory growth
+    private let maxCacheSize = 12
 
     // Fallback content for when API hasn't loaded yet
     private let fallbackHeadline = "Analyzing your journal entries..."
@@ -117,31 +129,20 @@ public struct InsightsView: View {
                         }
                         .accessibilityLabel("Select Month - \(currentMonthDisplay)")
                     }
-
-                    // Trailing: AI Chat button (white on purple background)
+                    
+                    // Trailing: New Entry button
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Button {
                             UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                            navigationPath.append(AIChatRoute.main)
+                            navigationPath.append(EntryRoute.create)
                         } label: {
-                            Image(systemName: "sparkles")
-                                .font(.system(size: 22, weight: .medium))
+                            Image(systemName: "square.and.pencil")
+                                .font(.system(size: 16, weight: .medium))
                                 .foregroundStyle(.white)
                         }
-                        .accessibilityLabel("AI Chat")
+                        .accessibilityLabel("New Journal Entry")
                     }
                 }
-                .simultaneousGesture(
-                    DragGesture(minimumDistance: 20)
-                        .onEnded { value in
-                            guard navigationPath.isEmpty else { return }
-                            guard value.translation.width > 60,
-                                  value.translation.width > abs(value.translation.height),
-                                  value.startLocation.x < 80 else { return }
-                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                            navigationPath.append(AIChatRoute.main)
-                        }
-                )
                 .navigationBarTitleDisplayMode(.inline)
                 .navigationDestination(for: EntryRoute.self) { route in
                     entryDestination(for: route)
@@ -161,26 +162,13 @@ public struct InsightsView: View {
                     monthPickerSheet
                 }
         }
-        .overlay(alignment: .bottomTrailing) {
-            if navigationPath.isEmpty {
-                Button {
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    createEntry()
-                } label: {
-                    Image(systemName: "square.and.pencil")
-                        .font(.system(size: 22, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: 56, height: 56)
-                        .background { Circle().fill(theme.primary) }
-                        .shadow(color: theme.primary.opacity(0.3), radius: 12, x: 0, y: 4)
-                }
-                .accessibilityLabel("New Journal Entry")
-                .accessibilityHint("Create a new journal entry")
-                .padding(.trailing, 16)
-                .padding(.bottom, 32)
-            }
+        .onChange(of: navigationPath.count) { _, count in
+            // Show accessory only on main view (when navigationPath is empty)
+            showAccessory?.wrappedValue = (count == 0)
         }
         .onAppear {
+            // Set initial state
+            showAccessory?.wrappedValue = (navigationPath.count == 0)
             // Preview-only: force loading state (skeleton, no content).
             if previewForceLoadingState {
                 isLoadingInsight = true
@@ -203,7 +191,7 @@ public struct InsightsView: View {
             }
         }
         .task(id: entryViewModel.entries.count) {
-            // Async only: entries load (skip in preview so mock entries aren’t overwritten) and first-appear insight load.
+            // Async only: entries load (skip in preview so mock entries aren't overwritten) and first-appear insight load.
             if !previewSkipLoadEntries {
                 await entryViewModel.loadEntriesIfNeeded()
             }
@@ -214,6 +202,14 @@ public struct InsightsView: View {
             if !hasCached, !entries.isEmpty {
                 await loadForCurrentMonth()
             }
+        }
+        .onDisappear {
+            animationTask?.cancel()
+            animationTask = nil
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)) { _ in
+            // Clear cache on memory warning to free up memory
+            insightCache.removeAll()
         }
     }
 
@@ -432,6 +428,13 @@ public struct InsightsView: View {
         guard !Task.isCancelled else { return }
 
         await MainActor.run {
+            // Cache eviction: remove oldest entry if cache is full
+            if insightCache.count >= maxCacheSize {
+                if let oldestKey = insightCache.keys.sorted().first {
+                    insightCache.removeValue(forKey: oldestKey)
+                }
+            }
+
             insightCache[key] = CachedInsight(content: content, entriesCount: count)
             if currentMonthKey == key {
                 insight = content
@@ -449,50 +452,42 @@ public struct InsightsView: View {
     }
 
     private func startLoadingSequence() {
-        // Phase 1: Show headline skeleton
+        animationTask?.cancel()
         isShowingHeadlineSkeleton = true
         displayedHeadline = ""
         loadingStep = 0
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+
+        animationTask = Task { @MainActor in
+            // Phase 1: Show skeleton for 1.2s
+            try? await Task.sleep(nanoseconds: 1_200_000_000)
+            guard !Task.isCancelled else { return }
+
             isShowingHeadlineSkeleton = false
-            typewriteHeadline()
-        }
-    }
 
-    private func typewriteHeadline() {
-        let headlineText = displayHeadline
-        let characters = Array(headlineText)
-        for index in 0..<characters.count {
-            DispatchQueue.main.asyncAfter(deadline: .now() + Double(index) * 0.03) {
-                displayedHeadline.append(characters[index])
-
-                // When finished, trigger the subsequent fade-ins
-                if index == characters.count - 1 {
-                    startStaggeredReveal()
-                }
+            // Phase 2: Typewrite headline
+            let headlineText = displayHeadline
+            for character in headlineText {
+                guard !Task.isCancelled else { return }
+                displayedHeadline.append(character)
+                try? await Task.sleep(nanoseconds: 30_000_000) // 30ms per character
             }
-        }
-    }
 
-    private func startStaggeredReveal() {
-        // Phase 3: Fade in remaining sections sequentially
-        for i in 1...totalSteps {
-            DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.6) {
-                loadingStep = i
-                if i == totalSteps {
-                    hasAnimated = true
-                }
+            // Phase 3: Staggered reveal of remaining sections
+            for step in 1...totalSteps {
+                guard !Task.isCancelled else { return }
+                try? await Task.sleep(nanoseconds: 600_000_000) // 600ms between steps
+                loadingStep = step
             }
+
+            guard !Task.isCancelled else { return }
+            hasAnimated = true
         }
     }
 
     /// Content when entries exist - displays AI-generated insights
     private var placeholderContent: some View {
-        GeometryReader { geo in
-            ScrollView {
+        ScrollView(.vertical, showsIndicators: true) {
                 VStack(alignment: .leading, spacing: 32) { // Standardized spacing
-
                     // Group 1: The Lead (Heading + Tag)
                 VStack(alignment: .leading, spacing: 16) {
                     ZStack(alignment: .topLeading) {
@@ -596,19 +591,55 @@ public struct InsightsView: View {
                 .padding(.top, 32)
                 .padding(.bottom, 100)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .frame(minHeight: geo.size.height)
+                .frame(minHeight: UIScreen.main.bounds.height)
+                .background(
+                    GeometryReader { geometry in
+                        Color.clear
+                            .preference(
+                                key: ScrollOffsetPreferenceKey.self,
+                                value: geometry.frame(in: .named("scroll")).minY
+                            )
+                    }
+                )
             }
+            .coordinateSpace(name: "scroll")
             .scrollIndicators(.hidden)
+            .onPreferenceChange(ScrollOffsetPreferenceKey.self) { value in
+                // Only apply tracking on iOS 18, not iOS 26+
+                if #available(iOS 26.0, *) {
+                    // Native behavior - do nothing
+                } else if let binding = tabBarHidden {
+                    scrollDebouncer.debounce {
+                        self.updateTabBarVisibility(scrollOffset: value, binding: binding)
+                    }
+                }
+            }
             .refreshable {
                 // Refresh entries, then load insight for current month (from cache or API; no extra API call if cached)
                 await entryViewModel.refreshEntries()
                 await loadForCurrentMonth()
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func updateTabBarVisibility(scrollOffset: CGFloat, binding: Binding<Bool>) {
+        let delta = scrollOffset - lastScrollOffset
+
+        // Scrolling down (negative delta) - hide tab bar
+        if delta < -scrollThreshold && !binding.wrappedValue {
+            binding.wrappedValue = true
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // Scrolling up (positive delta) - show tab bar
+        else if delta > scrollThreshold && binding.wrappedValue {
+            binding.wrappedValue = false
+        }
+
+        lastScrollOffset = scrollOffset
     }
 
     private func resetAnimation() {
+        animationTask?.cancel()
+        animationTask = nil
         loadingStep = 0
         isShowingHeadlineSkeleton = true
         displayedHeadline = ""
@@ -647,6 +678,7 @@ private struct CachedInsight {
     let content: InsightContent
     let entriesCount: Int
 }
+
 
 // MARK: - Preview Environment Keys
 private struct PreviewInsightContentKey: EnvironmentKey {

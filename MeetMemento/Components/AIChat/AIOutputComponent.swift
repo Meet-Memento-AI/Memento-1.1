@@ -48,6 +48,7 @@ public struct AIOutputComponent: View {
     @State private var showCitation = false
     @State private var isAnimating = false
     @State private var hasAnimated = false
+    @State private var animationTask: Task<Void, Never>?
 
     // Fast typing speed like ChatGPT (characters per second)
     private let charactersPerSecond: Double = 120
@@ -117,7 +118,7 @@ public struct AIOutputComponent: View {
             if !displayedBody.isEmpty || !animate {
                 Text(LocalizedStringKey(animate ? displayedBody : content.body))
                     .font(type.body1)
-                    .foregroundStyle(GrayScale.gray700)
+                    .foregroundStyle(GrayScale.gray900)
                     .lineSpacing(type.bodyLineSpacing)
             }
 
@@ -195,6 +196,8 @@ public struct AIOutputComponent: View {
     }
 
     private func resetAnimation() {
+        animationTask?.cancel()
+        animationTask = nil
         displayedHeading1 = ""
         displayedHeading2 = ""
         displayedBody = ""
@@ -206,6 +209,7 @@ public struct AIOutputComponent: View {
     // MARK: - Typewriter Animation Sequence
 
     private func startTypewriterSequence() {
+        animationTask?.cancel()
         guard !isAnimating else { return }
         isAnimating = true
 
@@ -214,42 +218,37 @@ public struct AIOutputComponent: View {
             showCitation = true
         }
 
-        let interval = 1.0 / charactersPerSecond
-        var totalDelay: Double = 0
+        animationTask = Task { @MainActor in
+            let interval: UInt64 = UInt64(1_000_000_000 / charactersPerSecond)
 
-        // Phase 1: Heading 1
-        if let heading1 = content.heading1, !heading1.isEmpty {
-            let characters = Array(heading1)
-            for (index, character) in characters.enumerated() {
-                DispatchQueue.main.asyncAfter(deadline: .now() + totalDelay + Double(index) * interval) {
+            // Phase 1: Heading 1
+            if let heading1 = content.heading1, !heading1.isEmpty {
+                for character in heading1 {
+                    guard !Task.isCancelled else { return }
                     displayedHeading1.append(character)
+                    try? await Task.sleep(nanoseconds: interval)
                 }
+                try? await Task.sleep(nanoseconds: 50_000_000) // 50ms pause between sections
             }
-            totalDelay += Double(characters.count) * interval + 0.05
-        }
 
-        // Phase 2: Heading 2
-        if let heading2 = content.heading2, !heading2.isEmpty {
-            let characters = Array(heading2)
-            for (index, character) in characters.enumerated() {
-                DispatchQueue.main.asyncAfter(deadline: .now() + totalDelay + Double(index) * interval) {
+            // Phase 2: Heading 2
+            if let heading2 = content.heading2, !heading2.isEmpty {
+                for character in heading2 {
+                    guard !Task.isCancelled else { return }
                     displayedHeading2.append(character)
+                    try? await Task.sleep(nanoseconds: interval)
                 }
+                try? await Task.sleep(nanoseconds: 50_000_000) // 50ms pause between sections
             }
-            totalDelay += Double(characters.count) * interval + 0.05
-        }
 
-        // Phase 3: Body
-        let bodyCharacters = Array(content.body)
-        for (index, character) in bodyCharacters.enumerated() {
-            DispatchQueue.main.asyncAfter(deadline: .now() + totalDelay + Double(index) * interval) {
+            // Phase 3: Body
+            for character in content.body {
+                guard !Task.isCancelled else { return }
                 displayedBody.append(character)
+                try? await Task.sleep(nanoseconds: interval)
             }
-        }
-        totalDelay += Double(bodyCharacters.count) * interval
 
-        // Typewriter complete
-        DispatchQueue.main.asyncAfter(deadline: .now() + totalDelay + 0.05) {
+            guard !Task.isCancelled else { return }
             isAnimating = false
             hasAnimated = true
         }

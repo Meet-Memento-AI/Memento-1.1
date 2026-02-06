@@ -22,13 +22,21 @@ class JournalService {
         return response.compactMap { $0.toDomain() }
     }
 
-    /// Creates a new journal entry.
-    func createEntry(_ entry: JournalEntry) async throws {
+    /// Creates a new journal entry and returns the created entry with server-assigned values.
+    @discardableResult
+    func createEntry(_ entry: JournalEntry) async throws -> JournalEntry {
         let dto = JournalEntryDTO(from: entry)
-        try await client
+        let response: [JournalEntryDTO] = try await client
             .from("journal_entries")
             .insert(dto)
+            .select()
             .execute()
+            .value
+
+        guard let createdDTO = response.first, let created = createdDTO.toDomain() else {
+            throw NSError(domain: "JournalService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to parse created entry"])
+        }
+        return created
     }
 
     /// Updates an existing journal entry.
