@@ -17,6 +17,7 @@ struct JournalCard: View {
 
     // MARK: - Environment
     @Environment(\.theme) private var theme
+    @Environment(\.typography) private var type
      
     // MARK: - State
     @State private var isPressed = false
@@ -43,7 +44,7 @@ struct JournalCard: View {
                 .hPadding(Spacing.lg)
                 .vPadding(Spacing.md)
         }
-        .cardStyle(radius: 24, border: false, shadow: false, backgroundColor: GrayScale.gray100)
+        .cardStyle(radius: 24, border: false, shadow: false, backgroundColor: theme.secondary)
         .pressEffect(isPressed: $isPressed, scale: 0.98, duration: Spacing.Duration.fast)
         .contentShape(Rectangle())
         .onTapGesture {
@@ -77,7 +78,8 @@ struct JournalCard: View {
     private var footer: some View {
         HStack(spacing: 8) {
             Image(systemName: "calendar")
-                .font(.system(size: 14, weight: .bold))
+                .font(type.body2)
+                .fontWeight(.bold)
                 .foregroundStyle(theme.primary)
                 .padding(4)
                 .cornerRadius(16)

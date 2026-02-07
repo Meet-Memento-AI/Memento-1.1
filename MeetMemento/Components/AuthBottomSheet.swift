@@ -85,12 +85,12 @@ public struct AuthBottomSheet: View {
                 // Header
                 VStack(alignment: .leading, spacing: 12) {
                     Text(mode.title)
-                        .font(type.h3)
+                        .font(type.h5)
                         .foregroundStyle(theme.foreground)
 
                     Text(mode.subtitle)
-                        .font(.custom("Manrope-Medium", size: 17))
-                        .lineSpacing(3.4)
+                        .font(type.body1)
+                        .lineSpacing(type.bodyLineSpacing)
                         .foregroundStyle(theme.mutedForeground)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -103,7 +103,7 @@ public struct AuthBottomSheet: View {
                     // Email input
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Email")
-                            .font(.custom("Manrope-Medium", size: 17))
+                            .font(type.body1)
                             .foregroundStyle(theme.foreground)
 
                         AppTextField(
@@ -124,13 +124,13 @@ public struct AuthBottomSheet: View {
                     // Divider
                     HStack(spacing: 16) {
                         Rectangle()
-                            .fill(GrayScale.gray300)
+                            .fill(theme.border)
                             .frame(height: 1)
                         Text("or")
-                            .font(.custom("Manrope-Regular", size: 15))
+                            .font(type.body2)
                             .foregroundStyle(theme.mutedForeground)
                         Rectangle()
-                            .fill(GrayScale.gray300)
+                            .fill(theme.border)
                             .frame(height: 1)
                     }
                     .padding(.vertical, 8)
@@ -140,9 +140,9 @@ public struct AuthBottomSheet: View {
                         Button(action: { status = "Apple \(mode.statusPrefix) (stub)" }) {
                             HStack(spacing: 8) {
                                 Image(systemName: "apple.logo")
-                                    .font(.custom("Manrope-Medium", size: 18))
+                                    .font(.system(size: 18, weight: .medium))
                                 Text("Continue with Apple")
-                                    .font(.custom("Manrope-SemiBold", size: 17))
+                                    .font(type.body1Bold)
                             }
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 16)
@@ -154,18 +154,18 @@ public struct AuthBottomSheet: View {
                         Button(action: { status = "Google \(mode.statusPrefix) (stub)" }) {
                             HStack(spacing: 8) {
                                 Image(systemName: "g.circle.fill")
-                                    .font(.custom("Manrope-Medium", size: 18))
+                                    .font(.system(size: 18, weight: .medium))
                                 Text("Continue with Google")
-                                    .font(.custom("Manrope-SemiBold", size: 17))
+                                    .font(type.body1Bold)
                             }
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 16)
-                            .background(Color.white)
+                            .background(theme.cardBackground)
                             .foregroundStyle(theme.foreground)
                             .clipShape(RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous))
                             .overlay(
                                 RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous)
-                                    .strokeBorder(GrayScale.gray300, lineWidth: 1.5)
+                                    .strokeBorder(theme.border, lineWidth: 1.5)
                             )
                         }
                     }
@@ -173,7 +173,7 @@ public struct AuthBottomSheet: View {
                     // Status message
                     if !status.isEmpty {
                         Text(status)
-                            .font(.custom("Manrope-Regular", size: 15))
+                            .font(type.body2)
                             .foregroundStyle(status.contains("✅") ? .green : theme.mutedForeground)
                             .multilineTextAlignment(.center)
                     }
@@ -184,6 +184,16 @@ public struct AuthBottomSheet: View {
                             onSuccess?()
                             DispatchQueue.main.async {
                                 authViewModel.skipToOnboardingForTesting()
+                            }
+                        }
+                    }
+
+                    // Skip to dashboard (only for sign-in, for UI testing)
+                    if mode == .signIn {
+                        SecondaryButton(title: "Skip to dashboard") {
+                            onSuccess?()
+                            DispatchQueue.main.async {
+                                authViewModel.bypassToMainApp()
                             }
                         }
                     }

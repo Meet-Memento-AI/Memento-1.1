@@ -19,6 +19,7 @@ public struct AIChatView: View {
     @State private var selectedCitations: [JournalCitation]? = nil
     @State private var showCitationsSheet = false
     @State private var inputAreaHeight: CGFloat = 104
+    @State private var scrollTask: Task<Void, Never>?
 
     private static let defaultSuggestions: [String] = [
         "Analyze my current mindset from my journal activity in the past week",
@@ -37,7 +38,7 @@ public struct AIChatView: View {
             // Floating input area with glass-like effect
             floatingInputArea
         }
-        .background(.white)
+        .background(theme.background)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
         .toolbar {
@@ -48,7 +49,7 @@ public struct AIChatView: View {
                     dismiss()
                 } label: {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(type.body1Bold)
                 }
                 .frame(width: 40, height: 40)
                 .clipShape(Circle())
@@ -59,6 +60,10 @@ public struct AIChatView: View {
         .toolbarBackground(.hidden, for: .navigationBar) // Hide default toolbar background
         .onAppear {
             loadInitialState()
+        }
+        .onDisappear {
+            scrollTask?.cancel()
+            scrollTask = nil
         }
         .sheet(isPresented: $showCitationsSheet) {
             if let citations = selectedCitations {
@@ -88,7 +93,7 @@ public struct AIChatView: View {
                             // Welcome message
                             Text("Welcome John, let's dive deeper into your journal")
                                 .font(type.h3)
-                                .foregroundStyle(GrayScale.gray900)
+                                .foregroundStyle(theme.foreground)
                                 .multilineTextAlignment(.leading)
                                 .padding(.horizontal, 20)
 
@@ -142,8 +147,11 @@ public struct AIChatView: View {
             }
             .onChange(of: isSending) { _, newValue in
                 if newValue {
-                     // Scroll to bottom when loading starts
-                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                     // Scroll to bottom when loading starts using Task
+                     scrollTask?.cancel()
+                     scrollTask = Task { @MainActor in
+                         try? await Task.sleep(nanoseconds: 100_000_000)
+                         guard !Task.isCancelled else { return }
                          withAnimation {
                              proxy.scrollTo("loading-state", anchor: .bottom)
                          }

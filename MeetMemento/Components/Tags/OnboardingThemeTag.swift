@@ -32,11 +32,11 @@ public struct OnboardingThemeTag: View {
                 .padding(.horizontal, 16)
                 .background(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(isSelected ? GrayScale.gray200 : Color.clear)
+                        .fill(isSelected ? theme.muted : Color.clear)
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .strokeBorder(GrayScale.gray200, lineWidth: isSelected ? 0 : 1.5)
+                        .strokeBorder(theme.muted, lineWidth: isSelected ? 0 : 1.5)
                 )
                 .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }

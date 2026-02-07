@@ -93,10 +93,7 @@ public struct WelcomeView: View {
                     }
 
                     // Create Account button
-                    SecondaryButton(
-                        title: "Create Account",
-                        customColor: isDarkBackground ? .white : nil
-                    ) {
+                    SecondaryButton(title: "Create Account") {
                         showCreateAccountSheet = true
                     }
                 }
@@ -107,12 +104,8 @@ public struct WelcomeView: View {
             .background(
                 ZStack {
                     if isDarkBackground {
-                        LinearGradient(
-                            colors: [PrimaryScale.primary900, PrimaryScale.primary700],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                        .transition(.opacity)
+                        theme.backgroundGradient
+                            .transition(.opacity)
                     } else {
                         theme.background
                             .transition(.opacity)
@@ -122,7 +115,7 @@ public struct WelcomeView: View {
             )
             .animation(.easeInOut(duration: 0.6), value: carouselPage)
         }
-        .useTypography(Typography.onboarding)
+        .useTypography()
         .onAppear {
             checkAndShowOnboarding()
         }
@@ -145,7 +138,7 @@ public struct WelcomeView: View {
         .fullScreenCover(isPresented: $showOnboardingFlow) {
             OnboardingCoordinatorView()
                 .useTheme()
-                .useTypography(Typography.onboarding)
+                .useTypography()
                 .environmentObject(authViewModel)
         }
         .onChange(of: authViewModel.hasCompletedOnboarding) { _, newValue in
@@ -166,7 +159,7 @@ public struct WelcomeView: View {
     private func carouselHeader(title: String, description: String, isDark: Bool) -> some View {
         VStack(spacing: 12) {
             Text(title)
-                .font(type.h2)
+                .typographyH2()
                 .foregroundStyle(isDark ? .white : theme.foreground)
                 .multilineTextAlignment(.center)
 
@@ -181,8 +174,8 @@ public struct WelcomeView: View {
 
     private let carouselItems = [
         CarouselItem(title: "Journal safely and securely", description: "Write or voice your journal entires."),
-        CarouselItem(title: "Reflect with AI", description: "Get personalized insights and identify patterns in your thoughts."),
-        CarouselItem(title: "Track Your Growth", description: "Visualize your emotional journey and personal evolution over time.")
+        CarouselItem(title: "Track Your Growth", description: "Visualize your emotional journey and personal evolution over time."),
+        CarouselItem(title: "Reflect with AI", description: "Get personalized insights and identify patterns in your thoughts.")
     ]
     
 }
@@ -197,7 +190,7 @@ private struct CarouselItem: Identifiable {
 #Preview("Welcome • Light") {
     WelcomeView()
         .useTheme()
-        .useTypography(Typography.onboarding)
+        .useTypography()
         .environmentObject(AuthViewModel())
         .preferredColorScheme(.light)
 }
@@ -205,7 +198,7 @@ private struct CarouselItem: Identifiable {
 #Preview("Welcome • Dark") {
     WelcomeView()
         .useTheme()
-        .useTypography(Typography.onboarding)
+        .useTypography()
         .environmentObject(AuthViewModel())
         .preferredColorScheme(.dark)
 }

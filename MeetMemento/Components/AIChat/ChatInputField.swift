@@ -37,74 +37,8 @@ public struct ChatInputField: View {
 
     public var body: some View {
         ZStack(alignment: .bottomTrailing) {
-            // TextField container with white background and fixed 120px min height
-            ZStack(alignment: .center) {
-                if speechService.isRecording {
-                    VoiceWaveView(audioLevel: speechService.audioLevel)
-                        .frame(height: 24) // Match roughly the line height of text input
-                        .padding(.leading, 16)
-                        .padding(.trailing, 56)
-                        .padding(.vertical, 16)
-                        .transition(.opacity)
-                } else {
-                    // Default Text Input State
-                    ZStack(alignment: .topLeading) {
-                        // Placeholder Text
-                        if text.isEmpty {
-                            Text("Chat with Memento")
-                                .typographyBody1()
-                                .foregroundStyle(GrayScale.gray500)
-                                .padding(.leading, 16)
-                                .padding(.top, 16)
-                        }
-                        
-                        // TextField with top-aligned text
-                        TextField("", text: $text, axis: .vertical)
-                            .typographyBody1()
-                            .foregroundStyle(theme.foreground)
-                            .focused($isFocused)
-                            .lineLimit(1...5)
-                            .textInputAutocapitalization(.sentences)
-                            .submitLabel(.send)
-                            .disabled(!isInteractive)
-                            .onSubmit {
-                                guard isInteractive, isSendButtonEnabled else { return }
-                                onSend()
-                            }
-                            .padding(.leading, 16)
-                            .padding(.trailing, text.isEmpty ? 100 : 52) // Shrink when mic is hidden
-                            .padding(.top, 16)
-                            .padding(.bottom, 16)
-                            .animation(.easeInOut(duration: 0.2), value: text.isEmpty)
-                    }
-                    .transition(.opacity)
-                }
-            }
-            .frame(maxWidth: .infinity, minHeight: 56) // Ensure full width and minimum height consistency
-            .background(Color.white)
-            .clipShape(RoundedRectangle(cornerRadius: theme.radius.xl, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: theme.radius.xl, style: .continuous)
-                    .stroke(theme.border.opacity(0.2), lineWidth: 0)
-            )
-            .animation(.easeInOut(duration: 0.2), value: speechService.isRecording)
-            
-            // Buttons positioned at bottom right
-            HStack(spacing: 16) {
-                if speechService.isRecording {
-                    stopButton
-                        .transition(.scale.combined(with: .opacity))
-                } else {
-                    if text.isEmpty {
-                        microphoneButton
-                            .transition(.scale.combined(with: .opacity))
-                    }
-                    sendButton
-                }
-            }
-            .animation(.easeInOut(duration: 0.2), value: text.isEmpty)
-            .padding(.trailing, 8)
-            .padding(.bottom, 10) // Align center with single-line text (56/2 - 36/2 = 10)
+            textInput
+            buttonRow
         }
         .allowsHitTesting(isInteractive)
         .padding(.horizontal, 20)
@@ -119,30 +53,91 @@ public struct ChatInputField: View {
                 insertTranscribedText(newText)
             }
         }
-        .alert("Microphone Access Required", isPresented: $showPermissionDenied) {
-            Button("Open Settings") {
-                if let url = URL(string: UIApplication.openSettingsURLString) {
-                    UIApplication.shared.open(url)
-                }
+        .modifier(SpeechAlertsModifier(
+            showPermissionDenied: $showPermissionDenied,
+            showSTTError: $showSTTError,
+            speechService: speechService
+        ))
+    }
+
+    // MARK: - Trailing Padding
+
+    private var trailingPadding: CGFloat {
+        text.isEmpty ? 100 : 52
+    }
+
+    // MARK: - Text Input
+
+    private var textInput: some View {
+        ZStack(alignment: .center) {
+            if speechService.isRecording {
+                VoiceWaveView(audioLevel: speechService.audioLevel)
+                    .frame(height: 24)
+                    .padding(.leading, 16)
+                    .padding(.trailing, 56)
+                    .padding(.vertical, 16)
+                    .transition(.opacity)
+            } else {
+                defaultInputView
+                    .transition(.opacity)
             }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("MeetMemento needs microphone access to transcribe your voice. Enable it in Settings > Privacy > Microphone.")
         }
-        .alert("Recording Failed", isPresented: $showSTTError) {
-            Button("Try Again") {
-                Task {
-                    do {
-                        try await speechService.startRecording()
-                    } catch {
-                        showSTTError = true
-                    }
-                }
+        .frame(maxWidth: .infinity, minHeight: 56)
+        .background(theme.inputBackground)
+        .clipShape(RoundedRectangle(cornerRadius: theme.radius.xl, style: .continuous))
+        .animation(.easeInOut(duration: 0.2), value: speechService.isRecording)
+    }
+
+    // MARK: - Default Input View
+
+    private var defaultInputView: some View {
+        ZStack(alignment: .topLeading) {
+            if text.isEmpty {
+                Text("Chat with Memento")
+                    .typographyBody1()
+                    .foregroundStyle(theme.mutedForeground)
+                    .padding(.leading, 16)
+                    .padding(.top, 16)
             }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text(speechService.errorMessage ?? "Unable to start recording. Please try again.")
+
+            TextField("", text: $text, axis: .vertical)
+                .typographyBody1()
+                .foregroundStyle(theme.foreground)
+                .focused($isFocused)
+                .lineLimit(1...5)
+                .textInputAutocapitalization(.sentences)
+                .submitLabel(.send)
+                .disabled(!isInteractive)
+                .onSubmit {
+                    guard isInteractive, isSendButtonEnabled else { return }
+                    onSend()
+                }
+                .padding(.leading, 16)
+                .padding(.trailing, trailingPadding)
+                .padding(.top, 16)
+                .padding(.bottom, 16)
+                .animation(.easeInOut(duration: 0.2), value: text.isEmpty)
         }
+    }
+
+    // MARK: - Button Row
+
+    private var buttonRow: some View {
+        HStack(spacing: 16) {
+            if speechService.isRecording {
+                stopButton
+                    .transition(.scale.combined(with: .opacity))
+            } else {
+                if text.isEmpty {
+                    microphoneButton
+                        .transition(.scale.combined(with: .opacity))
+                }
+                sendButton
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: text.isEmpty)
+        .padding(.trailing, 8)
+        .padding(.bottom, 10)
     }
     
     // MARK: - Microphone Button
@@ -167,7 +162,7 @@ public struct ChatInputField: View {
         } label: {
             Image(systemName: "mic")
                 .font(.system(size: 20, weight: .medium))
-                .foregroundStyle(GrayScale.gray500)
+                .foregroundStyle(theme.mutedForeground)
                 .frame(width: 36, height: 36)
                 .background(Color.clear)
         }
@@ -186,16 +181,14 @@ public struct ChatInputField: View {
                 await speechService.stopRecording()
             }
         } label: {
-            ZStack {
-                Image(systemName: "square.fill") // Stop icon
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(.white)
-            }
-            .frame(width: 36, height: 36)
-            .background(
-                Circle()
-                    .fill(Color.red)
-            )
+            Image(systemName: "square.fill")
+                .font(.system(size: 16, weight: .bold))
+                .foregroundColor(.white)
+                .frame(width: 36, height: 36)
+                .background(
+                    Circle()
+                        .fill(Color.red)
+                )
         }
         .accessibilityLabel("Stop voice input")
         .accessibilityHint("Double-tap to stop and insert text")
@@ -216,7 +209,7 @@ public struct ChatInputField: View {
                 } else {
                     Image(systemName: "arrow.up")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.white)
+                        .foregroundColor(theme.mutedForeground)
                 }
             }
             .frame(width: 36, height: 36)
@@ -224,15 +217,17 @@ public struct ChatInputField: View {
                 Circle()
                     .fill(
                         isSendButtonEnabled
-                            ? PrimaryScale.primary600
+                            ? theme.primary
                             : theme.muted
                     )
             )
         }
         .disabled(!isInteractive || !isSendButtonEnabled || isSending)
         .animation(.easeInOut(duration: 0.2), value: isSendButtonEnabled)
+        .accessibilityLabel(isSending ? "Sending message" : "Send message")
+        .accessibilityHint("Double-tap to send")
     }
-    
+
     private var isSendButtonEnabled: Bool {
         !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
@@ -248,6 +243,42 @@ public struct ChatInputField: View {
         speechService.transcribedText = ""
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         onSend()
+    }
+}
+
+// MARK: - Speech Alerts Modifier
+
+private struct SpeechAlertsModifier: ViewModifier {
+    @Binding var showPermissionDenied: Bool
+    @Binding var showSTTError: Bool
+    let speechService: SpeechService
+
+    func body(content: Content) -> some View {
+        content
+            .alert("Microphone Access Required", isPresented: $showPermissionDenied) {
+                Button("Open Settings") {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("MeetMemento needs microphone access to transcribe your voice. Enable it in Settings > Privacy > Microphone.")
+            }
+            .alert("Recording Failed", isPresented: $showSTTError) {
+                Button("Try Again") {
+                    Task {
+                        do {
+                            try await speechService.startRecording()
+                        } catch {
+                            showSTTError = true
+                        }
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text(speechService.errorMessage ?? "Unable to start recording. Please try again.")
+            }
     }
 }
 
@@ -269,7 +300,7 @@ private struct VoiceWaveView: View {
         HStack(spacing: barSpacing) {
             ForEach(0..<barCount, id: \.self) { index in
                 RoundedRectangle(cornerRadius: 2)
-                    .fill(GrayScale.gray400)
+                    .fill(Color.gray.opacity(0.5))
                     .frame(width: barWidth, height: barHeight(for: index))
                     .animation(.easeOut(duration: 0.12), value: audioLevel)
             }
@@ -297,7 +328,6 @@ private struct VoiceWaveView: View {
     }
     .useTheme()
     .useTypography()
-    .background(Color.gray.opacity(0.1))
 }
 
 #Preview("Input Field Recording") {
@@ -311,5 +341,4 @@ private struct VoiceWaveView: View {
     }
     .useTheme()
     .useTypography()
-    .background(Color.gray.opacity(0.1))
 }

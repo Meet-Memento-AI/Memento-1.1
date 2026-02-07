@@ -32,7 +32,7 @@ public struct PinEntryView: View {
 
             // Separator line
             Rectangle()
-                .fill(GrayScale.gray300)
+                .fill(theme.border)
                 .frame(height: 1)
                 .padding(.horizontal, 40)
 
@@ -47,12 +47,12 @@ public struct PinEntryView: View {
         HStack(spacing: 16) {
             ForEach(0..<maxDigits, id: \.self) { index in
                 Circle()
-                    .fill(index < pin.count ? GrayScale.gray400 : Color.clear)
+                    .fill(index < pin.count ? theme.mutedForeground : Color.clear)
                     .frame(width: 16, height: 16)
                     .overlay(
                         Circle()
                             .strokeBorder(
-                                index < pin.count ? Color.clear : GrayScale.gray300,
+                                index < pin.count ? Color.clear : theme.border,
                                 lineWidth: 1.5
                             )
                     )
@@ -103,12 +103,13 @@ public struct PinEntryView: View {
             appendDigit(digit)
         } label: {
             Text(digit)
-                .font(.system(size: 28, weight: .medium))
+                .font(type.h2)
+                .fontWeight(.medium)
                 .foregroundStyle(theme.foreground)
                 .frame(width: 72, height: 72)
                 .background(
                     Circle()
-                        .fill(Color.white)
+                        .fill(theme.cardBackground)
                         .shadow(color: .black.opacity(0.06), radius: 4, x: 0, y: 2)
                 )
         }
@@ -120,12 +121,13 @@ public struct PinEntryView: View {
             deleteLastDigit()
         } label: {
             Image(systemName: "delete.left")
-                .font(.system(size: 22, weight: .medium))
+                .font(type.h4)
+                .fontWeight(.medium)
                 .foregroundStyle(theme.foreground)
                 .frame(width: 72, height: 72)
                 .background(
                     Circle()
-                        .fill(Color.white)
+                        .fill(theme.cardBackground)
                         .shadow(color: .black.opacity(0.06), radius: 4, x: 0, y: 2)
                 )
         }

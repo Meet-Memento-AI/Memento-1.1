@@ -40,6 +40,7 @@ public struct AIOutputComponent: View {
     var onCitationsTapped: (() -> Void)?
     var onRedo: (() -> Void)?
 
+    @Environment(\.theme) private var theme
     @Environment(\.typography) private var type
 
     @State private var displayedHeading1 = ""
@@ -98,7 +99,7 @@ public struct AIOutputComponent: View {
                 if !displayedHeading1.isEmpty || !animate {
                     Text(animate ? displayedHeading1 : heading1)
                         .font(type.h3)
-                        .foregroundStyle(GrayScale.gray900)
+                        .foregroundStyle(theme.foreground)
                         .modifier(type.headingLineSpacingModifier(for: type.size2XL))
                 }
             }
@@ -108,7 +109,7 @@ public struct AIOutputComponent: View {
                 if !displayedHeading2.isEmpty || !animate {
                     Text(animate ? displayedHeading2 : heading2)
                         .font(type.h4)
-                        .foregroundStyle(GrayScale.gray900)
+                        .foregroundStyle(theme.foreground)
                         .modifier(type.headingLineSpacingModifier(for: type.sizeXL))
                         .padding(.top, (content.heading1?.isEmpty == false) ? 4 : 0)
                 }
@@ -118,7 +119,7 @@ public struct AIOutputComponent: View {
             if !displayedBody.isEmpty || !animate {
                 Text(LocalizedStringKey(animate ? displayedBody : content.body))
                     .font(type.body1)
-                    .foregroundStyle(GrayScale.gray900)
+                    .foregroundStyle(theme.foreground)
                     .lineSpacing(type.bodyLineSpacing)
             }
 
@@ -132,7 +133,7 @@ public struct AIOutputComponent: View {
                 } label: {
                     Image(systemName: "doc.on.doc")
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(GrayScale.gray500)
+                        .foregroundStyle(theme.mutedForeground)
                 }
                 .accessibilityLabel("Copy")
 
@@ -141,7 +142,7 @@ public struct AIOutputComponent: View {
                 } label: {
                     Image(systemName: "hand.thumbsup")
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(GrayScale.gray500)
+                        .foregroundStyle(theme.mutedForeground)
                 }
                 .accessibilityLabel("Thumbs up")
 
@@ -150,7 +151,7 @@ public struct AIOutputComponent: View {
                 } label: {
                     Image(systemName: "hand.thumbsdown")
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(GrayScale.gray500)
+                        .foregroundStyle(theme.mutedForeground)
                 }
                 .accessibilityLabel("Thumbs down")
 
@@ -159,7 +160,7 @@ public struct AIOutputComponent: View {
                 } label: {
                     Image(systemName: "arrow.clockwise")
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(GrayScale.gray500)
+                        .foregroundStyle(theme.mutedForeground)
                 }
                 .accessibilityLabel("Regenerate")
             }
@@ -167,6 +168,7 @@ public struct AIOutputComponent: View {
             .opacity(hasAnimated || !animate ? 1 : 0)
             .animation(.easeOut(duration: 0.28), value: hasAnimated)
         }
+        .padding(.top, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .onAppear {
             if animate && !hasAnimated {

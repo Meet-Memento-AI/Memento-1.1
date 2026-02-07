@@ -121,9 +121,10 @@ public struct InsightsView: View {
                         } label: {
                             HStack(spacing: 8) {
                                 Image(systemName: "calendar")
-                                    .font(.system(size: 18, weight: .medium))
+                                    .font(type.h5)
                                 Text(currentMonthDisplay)
-                                    .font(.system(size: 15, weight: .semibold))
+                                    .font(type.body2)
+                                    .fontWeight(.semibold)
                             }
                             .foregroundStyle(.white)
                         }
@@ -137,7 +138,8 @@ public struct InsightsView: View {
                             navigationPath.append(EntryRoute.create)
                         } label: {
                             Image(systemName: "square.and.pencil")
-                                .font(.system(size: 16, weight: .medium))
+                                .font(type.body1)
+                                .fontWeight(.medium)
                                 .foregroundStyle(.white)
                         }
                         .accessibilityLabel("New Journal Entry")
@@ -163,12 +165,16 @@ public struct InsightsView: View {
                 }
         }
         .onChange(of: navigationPath.count) { _, count in
-            // Show accessory only on main view (when navigationPath is empty)
-            showAccessory?.wrappedValue = (count == 0)
+            // Only update if Insights tab (1) is selected to avoid race condition
+            if selectedTab?.wrappedValue == 1 {
+                showAccessory?.wrappedValue = (count == 0)
+            }
         }
         .onAppear {
-            // Set initial state
-            showAccessory?.wrappedValue = (navigationPath.count == 0)
+            // Only update if Insights tab (1) is selected to avoid race condition
+            if selectedTab?.wrappedValue == 1 {
+                showAccessory?.wrappedValue = (navigationPath.count == 0)
+            }
             // Preview-only: force loading state (skeleton, no content).
             if previewForceLoadingState {
                 isLoadingInsight = true
@@ -305,7 +311,7 @@ public struct InsightsView: View {
                     Button("Cancel") {
                         showMonthPicker = false
                     }
-                    .foregroundStyle(PrimaryScale.primary600)
+                    .foregroundStyle(theme.primary)
                 }
 
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -313,7 +319,7 @@ public struct InsightsView: View {
                         updateSelectedDate()
                         showMonthPicker = false
                     }
-                    .foregroundStyle(PrimaryScale.primary600)
+                    .foregroundStyle(theme.primary)
                     .fontWeight(.semibold)
                 }
             }

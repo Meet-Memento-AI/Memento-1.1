@@ -25,23 +25,23 @@ public struct AISuggestionCard: View {
         VStack(alignment: .leading, spacing: 12) {
             Text(suggestion)
                 .font(type.body1Bold)
-                .foregroundStyle(PrimaryScale.primary600)
+                .foregroundStyle(theme.primary)
                 .multilineTextAlignment(.leading)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             HStack {
                 Spacer(minLength: 0)
                 Image(systemName: "arrow.right")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(PrimaryScale.primary600)
+                    .font(type.body1Bold)
+                    .foregroundStyle(theme.primary)
                     .frame(width: 44, height: 44)
-                    .background(Circle().fill(PrimaryScale.primary50))
+                    .background(Circle().fill(theme.primary.opacity(0.2)))
             }
         }
         .padding(.horizontal, 20)
         .padding(.top, 12)
         .padding(.bottom, 16)
-        .frame(maxWidth: 164, minHeight: 180, maxHeight: 200)
-        .background(BaseColors.white)
+        .frame(minWidth: 164, maxWidth: 164, minHeight: 180, maxHeight: 200)
+        .background(theme.primary.opacity(0.1))
         .clipShape(RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous))
         .contentShape(Rectangle())
         .onTapGesture {

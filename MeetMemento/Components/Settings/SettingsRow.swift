@@ -57,19 +57,19 @@ struct SettingsRow: View {
         HStack(spacing: 12) {
             // Icon
             Image(systemName: icon)
-                .font(.system(size: 20))
+                .font(type.h4)
                 .foregroundStyle(isDestructive ? theme.destructive : theme.primary)
                 .frame(width: 28, height: 28)
 
             // Title and subtitle
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(type.body1Bold)
                     .foregroundStyle(isDestructive ? theme.destructive : theme.foreground)
 
                 if let subtitle = subtitle {
                     Text(subtitle)
-                        .font(.system(size: 14))
+                        .font(type.body2)
                         .foregroundStyle(theme.mutedForeground)
                         .lineLimit(2)
                 }
@@ -83,7 +83,8 @@ struct SettingsRow: View {
                     .tint(theme.primary)
             } else if showChevron {
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(type.body2)
+                    .fontWeight(.semibold)
                     .foregroundStyle(theme.foreground.opacity(0.3))
             }
         }

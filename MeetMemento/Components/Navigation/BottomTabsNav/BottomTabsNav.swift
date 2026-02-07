@@ -27,6 +27,7 @@ public struct RootTabView: View {
     let onJournalCreate: () -> Void
     
     @Environment(\.theme) private var theme
+    @Environment(\.typography) private var type
     @EnvironmentObject var authViewModel: AuthViewModel
     
     public init(
@@ -70,7 +71,8 @@ public struct RootTabView: View {
                                     onJournalCreate()
                                 } label: {
                                     Image(systemName: "square.and.pencil")
-                                        .font(.system(size: 22, weight: .semibold))
+                                        .font(type.h4)
+                                        .fontWeight(.semibold)
                                         .foregroundStyle(.white)
                                         .frame(width: 56, height: 56)
                                         .background {
@@ -109,7 +111,8 @@ public struct RootTabView: View {
                                     onJournalCreate()
                                 } label: {
                                     Image(systemName: "square.and.pencil")
-                                        .font(.system(size: 22, weight: .semibold))
+                                        .font(type.h4)
+                                        .fontWeight(.semibold)
                                         .foregroundStyle(.white)
                                         .frame(width: 56, height: 56)
                                         .background {
@@ -125,7 +128,7 @@ public struct RootTabView: View {
                     }
                 }
             }
-            .tint(PrimaryScale.primary600)
+            .tint(theme.primary)
             .tabViewStyle(.sidebarAdaptable)
             .onChange(of: selectedTab) { oldValue, newValue in
                 // Prevent selection of spacer tab
@@ -206,7 +209,7 @@ public struct RootTabView: View {
                 }
                 .tag(BottomTabType.insights)
             }
-            .tint(PrimaryScale.primary600)
+            .tint(theme.primary)
             .environmentObject(entryViewModel)
             .useTheme()
             .useTypography()
@@ -232,6 +235,7 @@ public struct RootTabView: View {
                     insightsNavigationPath.removeLast()
                 }
             }
+            .toolbar(.hidden, for: .tabBar)
         case .createWithTitle(let prefillTitle):
             AddEntryView(state: .createWithTitle(prefillTitle)) { title, text in
                 entryViewModel.createEntry(title: title, text: text)
@@ -241,6 +245,7 @@ public struct RootTabView: View {
                     insightsNavigationPath.removeLast()
                 }
             }
+            .toolbar(.hidden, for: .tabBar)
         case .edit(let entry):
             AddEntryView(state: .edit(entry)) { title, text in
                 var updated = entry
@@ -253,6 +258,7 @@ public struct RootTabView: View {
                     insightsNavigationPath.removeLast()
                 }
             }
+            .toolbar(.hidden, for: .tabBar)
         }
     }
 }
@@ -266,9 +272,10 @@ private struct JournalTabView: View {
     let onAIChatTapped: () -> Void
     let onNavigateToEntry: (EntryRoute) -> Void
     let onJournalCreate: () -> Void
-    
+
     @Environment(\.theme) private var theme
-    
+    @Environment(\.typography) private var type
+
     var body: some View {
         ZStack {
             theme.background.ignoresSafeArea()
@@ -276,6 +283,7 @@ private struct JournalTabView: View {
             // Journal entries view
             YourEntriesView(
                 entryViewModel: entryViewModel,
+                monthGroups: entryViewModel.entriesByMonth,
                 onNavigateToEntry: onNavigateToEntry
             )
             
@@ -288,15 +296,17 @@ private struct JournalTabView: View {
                             onAIChatTapped()
                         } label: {
                             Image(systemName: "message.fill")
-                                .font(.system(size: 20, weight: .medium))
+                                .font(type.h4)
+                                .fontWeight(.medium)
                                 .foregroundStyle(theme.primary)
                         }
-                        
+
                         Button {
                             onSettingsTapped()
                         } label: {
                             Image(systemName: "gearshape.fill")
-                                .font(.system(size: 20, weight: .medium))
+                                .font(type.h4)
+                                .fontWeight(.medium)
                                 .foregroundStyle(theme.primary)
                         }
                     }

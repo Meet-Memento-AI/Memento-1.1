@@ -7,25 +7,76 @@
 
 import SwiftUI
 
+// MARK: - Month Header Position Tracking
+
+struct MonthHeaderPositionEntry: Equatable {
+    let monthStart: Date
+    let y: CGFloat
+}
+
+struct MonthHeaderPositionPreferenceKey: PreferenceKey {
+    static var defaultValue: [MonthHeaderPositionEntry] { [] }
+    static func reduce(value: inout [MonthHeaderPositionEntry], nextValue: () -> [MonthHeaderPositionEntry]) {
+        value.append(contentsOf: nextValue())
+    }
+}
+
 public struct JournalView: View {
     @EnvironmentObject var entryViewModel: EntryViewModel
     @EnvironmentObject var authViewModel: AuthViewModel
 
     @State private var navigationPath = NavigationPath()
 
-    @Environment(\.theme) private var theme
+    // Month picker state
+    @State private var showMonthPicker = false
+    @State private var selectedDate = Date()
+    @State private var selectedMonth: Int = Calendar.current.component(.month, from: Date())
+    @State private var selectedYear: Int = Calendar.current.component(.year, from: Date())
 
-    // Current month for calendar button
-    private var currentMonthShort: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMM"
-        return formatter.string(from: Date())
+    // Scroll-based month detection
+    @State private var visibleMonthStart: Date? = nil
+
+    // Task for loading data
+    @State private var loadingTask: Task<Void, Never>?
+
+    @Environment(\.theme) private var theme
+    @Environment(\.typography) private var type
+    @Environment(\.showAccessory) private var showAccessory
+    @Environment(\.selectedTab) private var selectedTab
+
+    // MARK: - Computed Properties
+
+    private let monthNames = Calendar.current.monthSymbols
+
+    private var availableMonths: [Date] {
+        entryViewModel.entriesByMonth.map { $0.monthStart }.sorted(by: >)
     }
 
-    private var currentMonthFull: String {
+    private var availableYears: [Int] {
+        let years = Set(availableMonths.map { Calendar.current.component(.year, from: $0) })
+        return Array(years).sorted(by: >)
+    }
+
+    private var currentMonthDisplay: String {
+        // Since scroll syncs with picker, we always use selectedDate
         let formatter = DateFormatter()
-        formatter.dateFormat = "MMMM"
-        return formatter.string(from: Date())
+        formatter.dateFormat = "MMMM, yyyy"
+        return formatter.string(from: selectedDate)
+    }
+
+    private var filteredEntriesByMonth: [MonthGroup] {
+        let calendar = Calendar.current
+        return entryViewModel.entriesByMonth.filter { monthGroup in
+            calendar.isDate(monthGroup.monthStart, equalTo: selectedDate, toGranularity: .month)
+        }
+    }
+
+    private var availableMonthsForYear: [Int] {
+        let calendar = Calendar.current
+        let monthsForYear = availableMonths
+            .filter { calendar.component(.year, from: $0) == selectedYear }
+            .map { calendar.component(.month, from: $0) }
+        return Array(Set(monthsForYear)).sorted()
     }
 
     public init() {}
@@ -34,49 +85,66 @@ public struct JournalView: View {
         NavigationStack(path: $navigationPath) {
             YourEntriesView(
                 entryViewModel: entryViewModel,
+                monthGroups: filteredEntriesByMonth,
+                onMonthVisibilityChanged: { monthStart in
+                    // Sync scroll position with picker selection
+                    selectedDate = monthStart
+                    selectedMonth = Calendar.current.component(.month, from: monthStart)
+                    selectedYear = Calendar.current.component(.year, from: monthStart)
+                    visibleMonthStart = monthStart
+                },
                 onNavigateToEntry: { route in
                     navigationPath.append(route)
                 }
             )
             .background(theme.background.ignoresSafeArea())
             .toolbar {
-                // Leading: Settings button
+                // Leading: Calendar/Month button
                 ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        showMonthPicker = true
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "calendar")
+                                .font(type.h5)
+                            Text(currentMonthDisplay)
+                                .font(type.body2)
+                                .fontWeight(.semibold)
+                        }
+                        .foregroundStyle(theme.foreground)
+                    }
+                    .accessibilityLabel("Select Month - \(currentMonthDisplay)")
+                }
+                
+                // Leading: Settings button
+                ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
                         UIImpactFeedbackGenerator(style: .light).impactOccurred()
                         navigationPath.append(SettingsRoute.main)
                     } label: {
-                        Image(systemName: "line.3.horizontal")
-                            .font(.system(size: 20, weight: .medium))
+                        Image(systemName: "person.fill")
+                            .font(type.body1)
+                            .fontWeight(.medium)
                             .foregroundStyle(theme.foreground)
                     }
-                    .accessibilityLabel("Settings")
+                    .accessibilityLabel("person")
                 }
 
-                // Trailing: AI Chat button
+                // Trailing: New Entry button
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
                         UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                        navigationPath.append(AIChatRoute.main)
+                        navigationPath.append(EntryRoute.create)
                     } label: {
-                        Image(systemName: "sparkles")
-                            .font(.system(size: 22, weight: .medium))
+                        Image(systemName: "square.and.pencil")
+                            .font(type.body1)
+                            .fontWeight(.medium)
                             .foregroundStyle(theme.foreground)
-                }
-                .accessibilityLabel("AI Chat")
+                    }
+                    .accessibilityLabel("New Journal Entry")
                 }
             }
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 20)
-                    .onEnded { value in
-                        guard navigationPath.isEmpty else { return }
-                        guard value.translation.width > 60,
-                              value.translation.width > abs(value.translation.height),
-                              value.startLocation.x < 80 else { return }
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                        navigationPath.append(AIChatRoute.main)
-                    }
-            )
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: EntryRoute.self) { route in
                 entryDestination(for: route)
@@ -94,7 +162,7 @@ public struct JournalView: View {
             }
             .navigationDestination(for: MonthInsightRoute.self) { route in
                 switch route {
-                case .detail(let monthLabel, let entryCount):
+                case .detail(let monthLabel, _):
                     InsightsView()
                         .environmentObject(entryViewModel)
                         .navigationTitle(monthLabel)
@@ -103,30 +171,106 @@ public struct JournalView: View {
                         .environment(\.fabVisible, false)
                 }
             }
+            .sheet(isPresented: $showMonthPicker) {
+                monthPickerSheet
+            }
         }
-        .overlay(alignment: .bottomTrailing) {
-            if navigationPath.isEmpty {
-                Button {
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    createEntry()
-                } label: {
-                    Image(systemName: "square.and.pencil")
-                        .font(.system(size: 22, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: 56, height: 56)
-                        .background { Circle().fill(theme.primary) }
-                        .shadow(color: theme.primary.opacity(0.3), radius: 12, x: 0, y: 4)
-                }
-                .accessibilityLabel("New Journal Entry")
-                .accessibilityHint("Create a new journal entry")
-                .padding(.trailing, 16)
-                .padding(.bottom, 32)
+        .onChange(of: navigationPath.count) { _, count in
+            // Only update if Journal tab (0) is selected to avoid race condition
+            if selectedTab?.wrappedValue == 0 {
+                showAccessory?.wrappedValue = (count == 0)
             }
         }
         .onAppear {
-            Task {
-                await entryViewModel.loadEntriesIfNeeded()
+            // Only update if Journal tab (0) is selected to avoid race condition
+            if selectedTab?.wrappedValue == 0 {
+                showAccessory?.wrappedValue = (navigationPath.count == 0)
             }
+            loadingTask = Task {
+                await entryViewModel.loadEntriesIfNeeded()
+                guard !Task.isCancelled else { return }
+
+                let calendar = Calendar.current
+                let hasEntriesForCurrentMonth = entryViewModel.entriesByMonth.contains { monthGroup in
+                    calendar.isDate(monthGroup.monthStart, equalTo: Date(), toGranularity: .month)
+                }
+
+                if !hasEntriesForCurrentMonth, let mostRecent = entryViewModel.entriesByMonth.first {
+                    selectedDate = mostRecent.monthStart
+                    selectedMonth = calendar.component(.month, from: mostRecent.monthStart)
+                    selectedYear = calendar.component(.year, from: mostRecent.monthStart)
+                }
+            }
+        }
+        .onDisappear {
+            loadingTask?.cancel()
+            loadingTask = nil
+        }
+    }
+
+    // MARK: - Month Picker Sheet
+
+    private var monthPickerSheet: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                HStack(spacing: 0) {
+                    Picker("Month", selection: $selectedMonth) {
+                        ForEach(availableMonthsForYear, id: \.self) { month in
+                            Text(monthNames[month - 1])
+                                .tag(month)
+                        }
+                    }
+                    .pickerStyle(.wheel)
+                    .frame(maxWidth: .infinity)
+
+                    Picker("Year", selection: $selectedYear) {
+                        ForEach(availableYears, id: \.self) { year in
+                            Text(String(year))
+                                .tag(year)
+                        }
+                    }
+                    .pickerStyle(.wheel)
+                    .frame(maxWidth: .infinity)
+                }
+                .frame(height: 200)
+                .padding(.vertical, 20)
+            }
+            .navigationTitle("Select Month")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        showMonthPicker = false
+                    }
+                    .foregroundStyle(theme.primary)
+                }
+
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        updateSelectedDate()
+                        showMonthPicker = false
+                    }
+                    .foregroundStyle(theme.primary)
+                    .fontWeight(.semibold)
+                }
+            }
+        }
+        .presentationDetents([.height(350)])
+        .presentationDragIndicator(.visible)
+        .onAppear {
+            selectedMonth = Calendar.current.component(.month, from: selectedDate)
+            selectedYear = Calendar.current.component(.year, from: selectedDate)
+        }
+    }
+
+    private func updateSelectedDate() {
+        var components = DateComponents()
+        components.year = selectedYear
+        components.month = selectedMonth
+        components.day = 1
+        if let newDate = Calendar.current.date(from: components) {
+            selectedDate = newDate
+            visibleMonthStart = newDate  // Keep in sync
         }
     }
 

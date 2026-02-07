@@ -39,7 +39,7 @@ public struct AppTextField: View {
         HStack(spacing: 12) {
             if let icon = icon {
                 Image(systemName: icon)
-                    .font(.system(size: 16))
+                    .font(type.body1)
                     .foregroundStyle(theme.mutedForeground)
                     .frame(width: 20)
             }
@@ -56,13 +56,15 @@ public struct AppTextField: View {
             .textInputAutocapitalization(textInputAutocapitalization)
             .keyboardType(keyboardType)
             .focused($isFocused)
+            .accessibilityLabel(placeholder)
+            .accessibilityHint(isSecure ? "Secure text field" : "Text field")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
         .background(theme.inputBackground)
-        .clipShape(RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: theme.radius.md, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous)
+            RoundedRectangle(cornerRadius: theme.radius.md, style: .continuous)
                 .stroke(isFocused ? theme.primary : theme.border, lineWidth: isFocused ? 2 : 1)
         )
     }

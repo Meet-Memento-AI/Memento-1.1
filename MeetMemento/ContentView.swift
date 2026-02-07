@@ -116,6 +116,7 @@ public struct ContentView: View {
     }
 
     @Environment(\.theme) private var theme
+    @Environment(\.typography) private var type
     @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject var authViewModel: AuthViewModel
 
@@ -124,7 +125,7 @@ public struct ContentView: View {
         if selectedTab == 1 {
             return .white
         }
-        return colorScheme == .dark ? .white : PrimaryScale.primary600
+        return colorScheme == .dark ? .white : theme.primary
     }
 
     public init() {}
@@ -153,61 +154,61 @@ public struct ContentView: View {
     
     @ViewBuilder
     private var tabViewContent: some View {
-        if #available(iOS 26.0, *) {
-            TabView(selection: $selectedTab) {
-                JournalView()
-                    .tabItem {
-                        Label("Journal", systemImage: "book.closed")
-                    }
-                    .tag(0)
+        ZStack {
+            if #available(iOS 26.0, *) {
+                TabView(selection: $selectedTab) {
+                    JournalView()
+                        .tabItem {
+                            Label("Journal", systemImage: "book.closed")
+                        }
+                        .tag(0)
 
-                insightsTab
-                    .tabItem {
-                        Label("Insights", systemImage: "sparkles")
-                    }
-                    .tag(1)
-            }
-            .tint(tabBarTint)
-            .tabViewStyle(.automatic)
-            .tabBarMinimizeBehavior(.onScrollDown)
-            .tabViewBottomAccessory {
-                talkToAIAccessory
-                    .opacity(showAccessory ? 1 : 0)
-            }
-        } else if #available(iOS 18.0, *) {
-            TabView(selection: $selectedTab) {
-                JournalView()
-                    .tabItem {
-                        Label("Journal", systemImage: "book.closed")
-                    }
-                    .tag(0)
+                    insightsTab
+                        .tabItem {
+                            Label("Insights", systemImage: "sparkles")
+                        }
+                        .tag(1)
+                }
+                .tint(tabBarTint)
+                .tabViewStyle(.automatic)
+                .tabBarMinimizeBehavior(.onScrollDown)
+            } else if #available(iOS 18.0, *) {
+                TabView(selection: $selectedTab) {
+                    JournalView()
+                        .tabItem {
+                            Label("Journal", systemImage: "book.closed")
+                        }
+                        .tag(0)
 
-                insightsTab
-                    .tabItem {
-                        Label("Insights", systemImage: "sparkles")
-                    }
-                    .tag(1)
-            }
-            .tint(tabBarTint)
-            .tabViewStyle(.sidebarAdaptable)
-            .overlay(alignment: .bottom) {
-                talkToAIAccessoryFallback
-            }
-        } else {
-            TabView(selection: $selectedTab) {
-                JournalView()
-                    .tabItem {
-                        Label("Journal", systemImage: "book.closed")
-                    }
-                    .tag(0)
+                    insightsTab
+                        .tabItem {
+                            Label("Insights", systemImage: "sparkles")
+                        }
+                        .tag(1)
+                }
+                .tint(tabBarTint)
+                .tabViewStyle(.sidebarAdaptable)
+            } else {
+                TabView(selection: $selectedTab) {
+                    JournalView()
+                        .tabItem {
+                            Label("Journal", systemImage: "book.closed")
+                        }
+                        .tag(0)
 
-                insightsTab
-                    .tabItem {
-                        Label("Insights", systemImage: "sparkles")
-                    }
-                    .tag(1)
+                    insightsTab
+                        .tabItem {
+                            Label("Insights", systemImage: "sparkles")
+                        }
+                        .tag(1)
+                }
+                .tint(tabBarTint)
             }
-            .tint(tabBarTint)
+
+            // FAB overlay - bottom right
+            if showAccessory {
+                aiFAB
+            }
         }
     }
 
@@ -217,78 +218,39 @@ public struct ContentView: View {
         InsightsView()
     }
 
-    // MARK: - Talk to AI Tab Bar Accessory (iOS 26+)
+    // MARK: - AI Floating Action Button
 
-    @ViewBuilder
-    private var talkToAIAccessory: some View {
-        if #available(iOS 26.0, *) {
-            Button {
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                showAIChat = true
-            } label: {
-                HStack(spacing: 5) {
-                    // Launch logo icon
-                    Image("Memento-Icon-Circle")
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 32, height: 32)
-
-                    Text("Ask your journal")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(selectedTab == 1 ? .white : theme.primary)
+    private var aiFAB: some View {
+        VStack {
+            Spacer()
+            HStack {
+                Spacer()
+                Button {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    showAIChat = true
+                } label: {
+                    Image(systemName: "sparkles")
+                        .font(type.h3)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.white)
+                        .frame(width: 56, height: 56)
+                        .background(
+                            Circle()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [theme.fabGradientStart, theme.fabGradientEnd],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                        )
+                        .shadow(color: theme.primary.opacity(0.3), radius: 12, x: 0, y: 6)
                 }
-
+                .buttonStyle(.plain)
+                .padding(.trailing, 20)
+                .padding(.bottom, 56)
             }
-            .buttonStyle(.plain)
         }
-    }
-
-    // MARK: - Talk to AI Fallback (iOS 18-25)
-
-    @ViewBuilder
-    private var talkToAIAccessoryFallback: some View {
-        Button {
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            showAIChat = true
-        } label: {
-            HStack(spacing: 10) {
-                // Launch logo icon
-                Image("LaunchLogo")
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 24, height: 24)
-
-                Text("Ask your journal")
-                    .font(.system(size: 15, weight: .semibold))
-            }
-            .foregroundStyle(selectedTab == 1 ? .white : theme.foreground)
-            .padding(.horizontal, 20)
-            .padding(.vertical, 12)
-            .background(
-                Capsule()
-                    .fill(
-                        selectedTab == 1
-                        ? LinearGradient(
-                            colors: [theme.fabGradientStart, theme.fabGradientEnd],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                        : LinearGradient(
-                            colors: [theme.cardBackground, theme.cardBackground],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .shadow(color: .black.opacity(0.15), radius: 12, x: 0, y: 6)
-            )
-            .overlay(
-                Capsule()
-                    .strokeBorder(selectedTab == 1 ? Color.clear : theme.border, lineWidth: 1)
-            )
-        }
-        .buttonStyle(.plain)
-        .padding(.bottom, isTabBarHidden ? 20 : 100) // Minimize with tab bar
-        .animation(.easeInOut(duration: 0.3), value: isTabBarHidden)
     }
 }
 

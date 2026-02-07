@@ -35,7 +35,7 @@ public struct ChatMessageBubble: View {
                     messageContent
                         .padding(.horizontal, 16)
                         .padding(.vertical, 16)
-                        .background(PrimaryScale.primary600)
+                        .background(theme.primary)
                         .clipShape(RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous))
                 }
             }

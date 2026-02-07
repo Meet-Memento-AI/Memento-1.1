@@ -28,9 +28,9 @@ public struct ChatEmptyState: View {
                 .frame(width: 48, height: 48)
 
             // Heading
-            Text("Welcome John, let’s dive deeper into your journal")
+            Text("Welcome John, let's dive deeper into your journal")
                 .font(type.h3)
-                .foregroundStyle(GrayScale.gray900)
+                .foregroundStyle(theme.foreground)
                 .multilineTextAlignment(.leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -58,7 +58,6 @@ public struct ChatEmptyState: View {
         .padding()
         .useTheme()
         .useTypography()
-        .background(Color.gray.opacity(0.1))
 }
 
 #Preview("Empty State • Dark") {
@@ -67,7 +66,6 @@ public struct ChatEmptyState: View {
         .useTheme()
         .useTypography()
         .preferredColorScheme(.dark)
-        .background(Color.gray.opacity(0.1))
 }
 
 #Preview("Empty State • With suggestions") {
@@ -81,5 +79,4 @@ public struct ChatEmptyState: View {
     .padding()
     .useTheme()
     .useTypography()
-    .background(Color.gray.opacity(0.1))
 }

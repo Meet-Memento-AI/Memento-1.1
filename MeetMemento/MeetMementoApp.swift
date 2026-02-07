@@ -23,6 +23,8 @@ struct MeetMementoApp: App {
                 if authViewModel.isAuthenticated && authViewModel.hasCompletedOnboarding {
                     // Fully onboarded user - show main app
                     ContentView()
+                        .useTheme()
+                        .useTypography()
                         .environmentObject(authViewModel)
                         .onAppear {
                             #if DEBUG

@@ -43,8 +43,6 @@ struct SettingsView: View {
         .background(theme.background.ignoresSafeArea())
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(.visible, for: .navigationBar)
-        .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
         .sheet(isPresented: $showDataUsageInfo) {
             NavigationStack {
                 DataUsageInfoView()
@@ -99,7 +97,7 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 16) {
             // Section header
             Text("Appearance")
-                .font(.system(size: 18, weight: .semibold))
+                .font(type.h5)
                 .foregroundStyle(theme.foreground)
                 .padding(.bottom, 4)
 
@@ -125,7 +123,7 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 16) {
             // Section header
             Text("About")
-                .font(.system(size: 18, weight: .semibold))
+                .font(type.h5)
                 .foregroundStyle(theme.foreground)
                 .padding(.bottom, 4)
 
@@ -151,7 +149,7 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 16) {
             // Section header
             Text("Data & Privacy")
-                .font(.system(size: 18, weight: .semibold))
+                .font(type.h5)
                 .foregroundStyle(theme.foreground)
                 .padding(.bottom, 4)
 
@@ -193,7 +191,7 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 16) {
             // Section header
             Text("Account")
-                .font(.system(size: 18, weight: .semibold))
+                .font(type.h5)
                 .foregroundStyle(theme.foreground)
                 .padding(.bottom, 4)
 

@@ -21,6 +21,11 @@ public struct SecondaryButton: View {
         self.action = action
     }
 
+    // Determine if we're in dark mode variant (white text on dark bg)
+    private var isDarkVariant: Bool {
+        customColor == .white
+    }
+
     public var body: some View {
         Button {
             guard !isLoading else { return }
@@ -30,17 +35,17 @@ public struct SecondaryButton: View {
                 if let systemImage { Image(systemName: systemImage) }
                 Text(title)
                     .typographyH5()
-                if isLoading { ProgressView().tint(customColor ?? PrimaryScale.primary600) }
+                if isLoading { ProgressView().tint(customColor ?? theme.primary) }
             }
             .padding(.vertical, 12)
             .padding(.horizontal, 16)
             .frame(maxWidth: .infinity)
-            .foregroundStyle(customColor ?? PrimaryScale.primary600)
-            .background(Color.clear) // Transparent background
+            .foregroundStyle(customColor ?? theme.primary)
+            .background(isDarkVariant ? Color.white.opacity(0.15) : theme.primary.opacity(0.1))
             .clipShape(RoundedRectangle(cornerRadius: theme.radius.xl, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: theme.radius.xl, style: .continuous)
-                    .stroke(customColor ?? PrimaryScale.primary600, lineWidth: 1.5)
+                    .stroke(isDarkVariant ? Color.white.opacity(0.3) : Color.clear, lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
@@ -66,4 +71,21 @@ public struct SecondaryButton: View {
     .useTheme()
     .useTypography()
     .preferredColorScheme(.dark)
+}
+
+#Preview("Dark Variant (On Primary Background)") {
+    VStack(spacing: 12) {
+        SecondaryButton(title: "Create Account", customColor: .white) {}
+    }
+    .padding()
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .background(
+        LinearGradient(
+            colors: [PrimaryScale.primary900, PrimaryScale.primary700],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    )
+    .useTheme()
+    .useTypography()
 }

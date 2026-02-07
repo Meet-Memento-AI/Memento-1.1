@@ -28,11 +28,12 @@ public struct CitationLink: View {
         } label: {
             HStack(spacing: 6) {
                 Text("Reviewed \(count) journal\(count == 1 ? "" : "s")")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(type.body2)
                     .fontWeight(.semibold)
 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(type.caption)
+                    .fontWeight(.semibold)
             }
             .foregroundStyle(theme.primary)
         }
