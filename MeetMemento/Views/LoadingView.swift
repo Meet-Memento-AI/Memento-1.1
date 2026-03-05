@@ -28,6 +28,10 @@ struct LoadingView: View {
     // Minimum display time enforcement
     @State private var hasMetMinimumDisplayTime = false
 
+    // Memory management - timer and task tracking for cleanup
+    @State private var tipTimer: Timer?
+    @State private var animationTasks: [Task<Void, Never>] = []
+
     var body: some View {
         ZStack {
             // Modern gradient background
@@ -76,6 +80,15 @@ struct LoadingView: View {
             startLoadingSequence()
             enforceMinimumDisplayTime()
         }
+        .onDisappear {
+            // CRITICAL: Clean up timer to prevent memory leak
+            tipTimer?.invalidate()
+            tipTimer = nil
+
+            // Cancel all animation tasks to prevent orphaned async work
+            animationTasks.forEach { $0.cancel() }
+            animationTasks.removeAll()
+        }
     }
 
     // MARK: - Loading Sequence
@@ -107,30 +120,36 @@ struct LoadingView: View {
                 breathingScale = 1.08
             }
 
-            Task { @MainActor in
+            let task1 = Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 400_000_000)
+                guard !Task.isCancelled else { return }
                 withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
                     showAppName = true
                 }
             }
+            animationTasks.append(task1)
 
-            Task { @MainActor in
+            let task2 = Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 800_000_000)
+                guard !Task.isCancelled else { return }
                 withAnimation(.easeIn(duration: 0.4)) {
                     showProgress = true
                 }
                 startProgressiveLoading()
             }
+            animationTasks.append(task2)
         }
 
         // Show tips after 2.5 seconds
-        Task { @MainActor in
+        let task3 = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 2_500_000_000)
+            guard !Task.isCancelled else { return }
             withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
                 showTip = true
             }
             startTipRotation()
         }
+        animationTasks.append(task3)
     }
 
     private func startProgressiveLoading() {
@@ -138,25 +157,30 @@ struct LoadingView: View {
         loadingPhase = .authenticating
 
         // Phase 2: Loading data (2-5s)
-        Task { @MainActor in
+        let task4 = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 2_000_000_000)
+            guard !Task.isCancelled else { return }
             withAnimation {
                 loadingPhase = .loadingData
             }
         }
+        animationTasks.append(task4)
 
         // Phase 3: Almost ready (5s+)
-        Task { @MainActor in
+        let task5 = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 5_000_000_000)
+            guard !Task.isCancelled else { return }
             withAnimation {
                 loadingPhase = .finalizing
             }
         }
+        animationTasks.append(task5)
     }
 
     private func startTipRotation() {
         // Rotate tips every 6 seconds with smooth transition
-        Timer.scheduledTimer(withTimeInterval: 6.0, repeats: true) { _ in
+        // Store timer reference for cleanup on disappear
+        tipTimer = Timer.scheduledTimer(withTimeInterval: 6.0, repeats: true) { [self] _ in
             withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) {
                 currentTipIndex = (currentTipIndex + 1) % loadingTips.count
             }
@@ -165,10 +189,12 @@ struct LoadingView: View {
 
     private func enforceMinimumDisplayTime() {
         // Ensure loading view shows for at least 800ms to avoid jarring flashes
-        Task { @MainActor in
+        let task6 = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 800_000_000)
+            guard !Task.isCancelled else { return }
             hasMetMinimumDisplayTime = true
         }
+        animationTasks.append(task6)
     }
 }
 

@@ -21,7 +21,8 @@ public struct ChatInputField: View {
 
     @Environment(\.theme) private var theme
     @FocusState private var isFocused: Bool
-    @StateObject private var speechService = SpeechService.shared
+    // Use @ObservedObject for singleton to avoid creating duplicate observers
+    @ObservedObject private var speechService = SpeechService.shared
     @State private var showPermissionDenied = false
     @State private var showSTTError = false
 

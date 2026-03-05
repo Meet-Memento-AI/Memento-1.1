@@ -325,9 +325,11 @@ final class SpeechService: ObservableObject {
         currentDuration = 0
         silenceStartTime = nil
 
+        // End audio input to recognition request
         recognitionRequest?.endAudio()
-        // Do not cancel the task — let it finish so we get the final transcription in the callback
 
+        // Stop and release audio engine BEFORE nullifying request
+        // This ensures the tap is removed while engine is still valid
         if let engine = audioEngine {
             let inputNode = engine.inputNode
             inputNode.removeTap(onBus: 0)
@@ -335,6 +337,13 @@ final class SpeechService: ObservableObject {
         }
         audioEngine = nil
 
+        // Release recognition request after engine stopped
+        recognitionRequest = nil
+
+        // Note: recognitionTask is NOT cancelled - let it finish for final transcription
+        // It will be set to nil in handleRecognitionResult when isFinal
+
+        // Deactivate audio session to release system audio resources
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
 
         audioLevel = 0
@@ -343,7 +352,6 @@ final class SpeechService: ObservableObject {
         // Note: activeSessionOwner is intentionally NOT cleared here.
         // It remains set so the owning view can consume the transcribedText.
         // It will be cleared when the next recording starts.
-        // transcribedText already set in recognition task callback when isFinal; if not, partial may be in transcribedText from last callback
     }
 
     /// Checks if the given owner is the active session owner.

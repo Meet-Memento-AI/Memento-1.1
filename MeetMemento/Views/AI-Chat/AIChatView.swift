@@ -18,6 +18,9 @@ public struct AIChatView: View {
     @State private var messages: [ChatMessage] = []
     @State private var inputText: String = ""
     @State private var isSending: Bool = false
+
+    // Memory optimization: cap message history to prevent unbounded growth
+    private let maxMessagesInMemory = 100
     @State private var reviewedJournalCount: Int = 5 // Mock data
     @State private var selectedCitations: [JournalCitation]? = nil
     @State private var showCitationsSheet = false
@@ -285,12 +288,12 @@ public struct AIChatView: View {
         }
         guard !text.isEmpty, !isSending else { return }
 
-        // Add user message
+        // Add user message with memory limit enforcement
         let userMessage = ChatMessage(
             content: text,
             isFromUser: true
         )
-        messages.append(userMessage)
+        addMessage(userMessage)
 
         if prompt == nil {
             inputText = ""
@@ -332,9 +335,18 @@ public struct AIChatView: View {
                 
                 withAnimation {
                     isSending = false
-                    messages.append(aiResponse)
+                    addMessage(aiResponse)
                 }
             }
+        }
+    }
+
+    /// Adds a message while enforcing memory limit to prevent unbounded growth
+    private func addMessage(_ message: ChatMessage) {
+        messages.append(message)
+        // Keep only recent messages in memory to prevent OOM
+        if messages.count > maxMessagesInMemory {
+            messages.removeFirst(messages.count - maxMessagesInMemory)
         }
     }
     

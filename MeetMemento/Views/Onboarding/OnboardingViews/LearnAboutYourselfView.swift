@@ -15,7 +15,8 @@ public struct LearnAboutYourselfView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
     @EnvironmentObject var onboardingViewModel: OnboardingViewModel
 
-    @StateObject private var speechService = SpeechService.shared
+    // Use @ObservedObject for singleton to avoid creating duplicate observers
+    @ObservedObject private var speechService = SpeechService.shared
 
     /// Unique identifier for this view's speech session ownership
     private let speechOwnerId = "LearnAboutYourselfView"

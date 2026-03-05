@@ -13,13 +13,21 @@ import Supabase
 
 @MainActor
 class EntryViewModel: ObservableObject {
-    @Published var entries: [Entry] = [] {
-        didSet { updateEntriesByMonth() }
-    }
-    @Published private(set) var entriesByMonth: [MonthGroup] = []
+    @Published var entries: [Entry] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var userFirstName: String = ""
+
+    // Computed property for lazy grouping - reduces memory churn vs didSet
+    var entriesByMonth: [MonthGroup] {
+        let calendar = Calendar.current
+        let grouped = Dictionary(grouping: entries) { entry in
+            calendar.dateInterval(of: .month, for: entry.createdAt)?.start ?? entry.createdAt
+        }
+        return grouped.map { (monthStart, entries) in
+            MonthGroup(monthStart: monthStart, entries: entries.sorted { $0.createdAt > $1.createdAt })
+        }.sorted { $0.monthStart > $1.monthStart }
+    }
 
     // MARK: - Search
 
@@ -36,18 +44,6 @@ class EntryViewModel: ObservableObject {
             entry.text.lowercased().contains(searchTerms)
         }
         .sorted { $0.createdAt > $1.createdAt }
-    }
-
-    // MARK: - Month Grouping (for UI display)
-
-    private func updateEntriesByMonth() {
-        let calendar = Calendar.current
-        let grouped = Dictionary(grouping: entries) { entry in
-            calendar.dateInterval(of: .month, for: entry.createdAt)?.start ?? entry.createdAt
-        }
-        self.entriesByMonth = grouped.map { (monthStart, entries) in
-            MonthGroup(monthStart: monthStart, entries: entries.sorted { $0.createdAt > $1.createdAt })
-        }.sorted { $0.monthStart > $1.monthStart }
     }
 
     // MARK: - CRUD Operations

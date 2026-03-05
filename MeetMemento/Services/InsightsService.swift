@@ -57,7 +57,9 @@ class InsightsService {
             throw AuthError.missingEmail
         }
         
+        #if DEBUG
         print("🔍 [InsightsService] Starting insight generation for \(entries.count) entries")
+        #endif
         
         // 1. Prepare Payload
         // Format must match Edge Function's JournalEntry interface
@@ -65,7 +67,9 @@ class InsightsService {
         let validEntries = entries.filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
         guard !validEntries.isEmpty else {
+            #if DEBUG
             print("❌ [InsightsService] No valid entries with content")
+            #endif
             throw NSError(domain: "InsightsService", code: 400, userInfo: [NSLocalizedDescriptionKey: "No entries with content to analyze"])
         }
 
@@ -79,9 +83,11 @@ class InsightsService {
         }
 
         let requestBody = GenerateInsightsRequest(entries: payloadEntries)
+
+        #if DEBUG
         print("🔍 [InsightsService] Payload prepared: \(payloadEntries.count) entries")
 
-        // Debug: Print the actual JSON being sent
+        // Debug: Print the actual JSON being sent (only in DEBUG builds)
         do {
             let encoder = JSONEncoder()
             encoder.outputFormatting = .prettyPrinted
@@ -95,22 +101,27 @@ class InsightsService {
         // Check if user is authenticated
         let currentUserId = client.auth.currentUser?.id.uuidString ?? "NOT AUTHENTICATED"
         print("🔍 [InsightsService] Auth check - currentUser: \(currentUserId)")
+        #endif
 
         do {
             // 2. Invoke Edge Function
+            #if DEBUG
             print("🔍 [InsightsService] Calling Edge Function...")
+            #endif
 
             // The invoke method with a generic type parameter returns the decoded response
             let content: InsightContent = try await client.functions.invoke(
                 "generate-insights",
                 options: FunctionInvokeOptions(body: requestBody)
             )
-            
+
+            #if DEBUG
             print("✅ [InsightsService] Successfully decoded InsightContent")
             print("   - Headline: \(content.headline)")
             print("   - Themes: \(content.themes ?? [])")
             print("   - Suggestions: \(content.suggestions ?? [])")
-            
+            #endif
+
             // 3. Wrap in UserInsight model for the UI
             let newInsight = UserInsight(
                 userId: userId,
@@ -118,11 +129,14 @@ class InsightsService {
                 content: try InsightContent.encodeToJSONMap(content),
                 entriesAnalyzedCount: entries.count
             )
-            
+
+            #if DEBUG
             print("✅ [InsightsService] UserInsight created successfully")
+            #endif
             return newInsight
             
         } catch let decodingError as DecodingError {
+            #if DEBUG
             print("❌ [InsightsService] Decoding error: \(decodingError)")
             switch decodingError {
             case .keyNotFound(let key, let context):
@@ -139,8 +153,10 @@ class InsightsService {
             @unknown default:
                 print("   - Unknown decoding error")
             }
+            #endif
             throw decodingError
         } catch {
+            #if DEBUG
             print("❌ [InsightsService] Error: \(error)")
             print("   - Error type: \(type(of: error))")
             print("   - Error description: \(error.localizedDescription)")
@@ -162,6 +178,7 @@ class InsightsService {
                     }
                 }
             }
+            #endif
 
             throw error
         }
@@ -170,7 +187,9 @@ class InsightsService {
 
     /// Sends a chat message history + context entries to the AI and returns the response.
     func chat(messages: [ChatMessage], entries: [Entry]) async throws -> AIOutputContent {
+        #if DEBUG
         print("💬 [InsightsService] Sending chat with \(entries.count) entries context")
+        #endif
 
         let payloadEntries = entries.map { entry in
             JournalEntryPayload(

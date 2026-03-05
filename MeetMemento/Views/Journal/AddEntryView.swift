@@ -20,7 +20,8 @@ public struct AddEntryView: View {
     @Environment(\.theme) private var theme
     @Environment(\.typography) private var type
 
-    @StateObject private var speechService = SpeechService.shared
+    // Use @ObservedObject for singleton to avoid creating duplicate observers
+    @ObservedObject private var speechService = SpeechService.shared
 
     /// Unique identifier for this view's speech session ownership
     private let speechOwnerId = "AddEntryView"
