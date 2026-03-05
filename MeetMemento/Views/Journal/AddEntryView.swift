@@ -203,29 +203,18 @@ public struct AddEntryView: View {
             HStack(spacing: 8) {
                 Image(systemName: speechService.isRecording ? "stop.fill" : "mic.fill")
                     .font(type.h4)
-                    .foregroundStyle(theme.primaryForeground)
+                    .foregroundStyle(theme.primary)
 
                 // Duration timer appears inside button when recording
                 if speechService.isRecording {
                     Text(formatDuration(speechService.currentDuration))
                         .font(type.body2Bold)
-                        .foregroundStyle(theme.primaryForeground)
+                        .foregroundStyle(theme.destructive)
                         .transition(.opacity.combined(with: .scale(scale: 0.8)))
                 }
             }
             .frame(width: fabWidth, height: 64)
-            .background(
-                Capsule()
-                    .fill(
-                        LinearGradient(
-                            colors: speechService.isRecording
-                                ? [theme.destructive.opacity(0.8), theme.destructive]
-                                : [theme.fabGradientStart, theme.fabGradientEnd],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-            )
+            .background(microphoneFABBackground)
             .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.75), value: speechService.isRecording)
@@ -247,7 +236,25 @@ public struct AddEntryView: View {
         }
         .disabled(isSaving || text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
     }
-    
+
+    @ViewBuilder
+    private var microphoneFABBackground: some View {
+        if #available(iOS 26.0, *) {
+            // iOS 26: Liquid glass with frosted effect
+            Capsule()
+                .fill(Color.white.opacity(0.3))
+                .glassEffect(.regular.interactive(), in: Capsule())
+        } else {
+            // iOS 18+: Ultra thin material fallback
+            Capsule()
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    Capsule()
+                        .strokeBorder(Color.white.opacity(0.3), lineWidth: 1)
+                )
+        }
+    }
+
     // MARK: - Actions
 
     private func setupInitialFocus() {

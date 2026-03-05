@@ -5,6 +5,11 @@
 //  Insights view with Liquid Glass toolbar and navigation
 //
 
+// MARK: - DEPRECATED
+// This view is no longer used in the main navigation.
+// The "Insights" tab now shows AIChatView instead.
+// File kept for reference and potential future use.
+
 import SwiftUI
 
 public struct InsightsView: View {
@@ -165,14 +170,14 @@ public struct InsightsView: View {
                 }
         }
         .onChange(of: navigationPath.count) { _, count in
-            // Only update if Insights tab (1) is selected to avoid race condition
-            if selectedTab?.wrappedValue == 1 {
+            // Only update if Insights tab is selected to avoid race condition
+            if selectedTab?.wrappedValue == .digDeeper {
                 showAccessory?.wrappedValue = (count == 0)
             }
         }
         .onAppear {
-            // Only update if Insights tab (1) is selected to avoid race condition
-            if selectedTab?.wrappedValue == 1 {
+            // Only update if Insights tab is selected to avoid race condition
+            if selectedTab?.wrappedValue == .digDeeper {
                 showAccessory?.wrappedValue = (navigationPath.count == 0)
             }
             // Preview-only: force loading state (skeleton, no content).
@@ -355,7 +360,7 @@ public struct InsightsView: View {
         case .create:
             AddEntryView(state: .create) { title, text in
                 entryViewModel.createEntry(title: title, text: text)
-                selectedTab?.wrappedValue = 0
+                selectedTab?.wrappedValue = .yourEntries
                 navigationPath.removeLast()
             }
             .toolbar(.hidden, for: .tabBar)
@@ -363,7 +368,7 @@ public struct InsightsView: View {
         case .createWithTitle(let prefillTitle):
             AddEntryView(state: .createWithTitle(prefillTitle)) { title, text in
                 entryViewModel.createEntry(title: title, text: text)
-                selectedTab?.wrappedValue = 0
+                selectedTab?.wrappedValue = .yourEntries
                 navigationPath.removeLast()
             }
             .toolbar(.hidden, for: .tabBar)

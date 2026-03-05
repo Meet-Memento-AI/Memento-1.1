@@ -21,6 +21,23 @@ class EntryViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var userFirstName: String = ""
 
+    // MARK: - Search
+
+    /// Filter entries by title or content text
+    /// - Parameter query: Search query string
+    /// - Returns: Filtered entries sorted by most recent first
+    func searchEntries(query: String) -> [Entry] {
+        guard !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return entries
+        }
+        let searchTerms = query.lowercased()
+        return entries.filter { entry in
+            entry.title.lowercased().contains(searchTerms) ||
+            entry.text.lowercased().contains(searchTerms)
+        }
+        .sorted { $0.createdAt > $1.createdAt }
+    }
+
     // MARK: - Month Grouping (for UI display)
 
     private func updateEntriesByMonth() {

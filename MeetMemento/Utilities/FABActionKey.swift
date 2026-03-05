@@ -16,7 +16,7 @@ struct FABVisibilityKey: EnvironmentKey {
 }
 
 struct SelectedTabKey: EnvironmentKey {
-    static let defaultValue: Binding<Int>? = nil
+    static let defaultValue: Binding<JournalTopTab>? = nil
 }
 
 extension EnvironmentValues {
@@ -30,7 +30,7 @@ extension EnvironmentValues {
         set { self[FABVisibilityKey.self] = newValue }
     }
 
-    var selectedTab: Binding<Int>? {
+    var selectedTab: Binding<JournalTopTab>? {
         get { self[SelectedTabKey.self] }
         set { self[SelectedTabKey.self] = newValue }
     }

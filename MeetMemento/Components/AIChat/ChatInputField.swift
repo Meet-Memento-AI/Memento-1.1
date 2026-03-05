@@ -83,9 +83,24 @@ public struct ChatInputField: View {
             }
         }
         .frame(maxWidth: .infinity, minHeight: 56)
-        .background(theme.inputBackground)
-        .clipShape(RoundedRectangle(cornerRadius: theme.radius.xl, style: .continuous))
+        .background(inputFieldBackground)
         .animation(.easeInOut(duration: 0.2), value: speechService.isRecording)
+    }
+
+    // MARK: - Input Field Background
+
+    @ViewBuilder
+    private var inputFieldBackground: some View {
+        if #available(iOS 26.0, *) {
+            // iOS 26: Liquid glass effect with higher frost (semi-transparent fill adds opacity)
+            RoundedRectangle(cornerRadius: theme.radius.xl, style: .continuous)
+                .fill(Color.white.opacity(0.4))
+                .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: theme.radius.xl, style: .continuous))
+        } else {
+            // iOS 18+: Light grey background
+            RoundedRectangle(cornerRadius: theme.radius.xl, style: .continuous)
+                .fill(theme.inputBackground)
+        }
     }
 
     // MARK: - Default Input View
@@ -209,7 +224,7 @@ public struct ChatInputField: View {
                 } else {
                     Image(systemName: "arrow.up")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(theme.mutedForeground)
+                        .foregroundColor(isSendButtonEnabled ? .white : theme.mutedForeground)
                 }
             }
             .frame(width: 36, height: 36)

@@ -3,9 +3,9 @@
 //  MeetMemento
 //
 
-//  Main content view that displays the journal with top navigation tabs.
+//  Main content view with top pill-based navigation.
 //  - Journal tab: displays user's journal entries
-//  - Insights tab: displays AI-generated insights and themes
+//  - Insights tab: displays AI chat interface (inline)
 //
 
 import SwiftUI
@@ -14,7 +14,7 @@ private struct PreviewEntryViewModelKey: EnvironmentKey {
     static let defaultValue: EntryViewModel? = nil
 }
 private struct PreviewInitialTabKey: EnvironmentKey {
-    static let defaultValue: Int? = nil
+    static let defaultValue: JournalTopTab? = nil
 }
 private struct TabBarHiddenKey: EnvironmentKey {
     static let defaultValue: Binding<Bool>? = nil
@@ -27,7 +27,7 @@ extension EnvironmentValues {
         get { self[PreviewEntryViewModelKey.self] }
         set { self[PreviewEntryViewModelKey.self] = newValue }
     }
-    var previewInitialTab: Int? {
+    var previewInitialTab: JournalTopTab? {
         get { self[PreviewInitialTabKey.self] }
         set { self[PreviewInitialTabKey.self] = newValue }
     }
@@ -97,19 +97,34 @@ extension View {
     func trackScrollDirection(tabBarHidden: Binding<Bool>) -> some View {
         self.modifier(ScrollOffsetModifier(tabBarHidden: tabBarHidden))
     }
+
+    /// Conditionally applies glassEffect only on iOS 26+
+    /// Falls back to unchanged view on earlier iOS versions
+    @ViewBuilder
+    func iOS26GlassEffect(in shape: some Shape = .rect(cornerRadius: 16)) -> some View {
+        if #available(iOS 26.0, *) {
+            self.glassEffect(in: shape)
+        } else {
+            self
+        }
+    }
 }
 
 public struct ContentView: View {
-    /// Single source of truth for tab selection; @State avoids @SceneStorage persistence causing repeated/conflicting updates when switching tabs.
-    @State private var selectedTab = 0
+    /// Selected tab using JournalTopTab enum for top pill navigation
+    @State private var selectedTab: JournalTopTab = .yourEntries
+    @State private var swipeProgress: CGFloat = 0
     @State private var didSetPreviewTab = false
-    @State private var showAIChat = false
     @State private var isTabBarHidden = false
     @State private var showAccessory = true
+    @State private var showJournalSearch = false
+
+    /// Consolidated navigation path for all routes
+    @State private var navigationPath = NavigationPath()
 
     @StateObject private var defaultEntryViewModel = EntryViewModel()
     @Environment(\.previewEntryViewModel) private var previewEntryViewModel: EntryViewModel?
-    @Environment(\.previewInitialTab) private var previewInitialTab: Int?
+    @Environment(\.previewInitialTab) private var previewInitialTab: JournalTopTab?
 
     private var entryViewModel: EntryViewModel {
         previewEntryViewModel ?? defaultEntryViewModel
@@ -120,148 +135,166 @@ public struct ContentView: View {
     @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject var authViewModel: AuthViewModel
 
-    /// Tab bar tint: selection-aware for visibility. When Insights is selected, white for contrast on dark purple background; when Journal is selected, follows light/dark behavior.
-    private var tabBarTint: Color {
-        if selectedTab == 1 {
-            return .white
-        }
-        return colorScheme == .dark ? .white : theme.primary
-    }
-
     public init() {}
 
     public var body: some View {
-        tabViewContent
-            .environmentObject(entryViewModel)
-            .environment(\.selectedTab, $selectedTab)
-            .environment(\.tabBarHidden, $isTabBarHidden)
-            .environment(\.showAccessory, $showAccessory)
-            .useTheme()
-            .useTypography()
-            .onAppear {
-                if let tab = previewInitialTab, !didSetPreviewTab {
-                    selectedTab = tab
-                    didSetPreviewTab = true
+        NavigationStack(path: $navigationPath) {
+            ZStack(alignment: .top) {
+                // Main content with swipeable tabs
+                // Note: Views handle their own top padding when isEmbedded == true
+                TopTabNavContainer(selection: $selectedTab, swipeProgress: $swipeProgress, showTopNav: false) { tab in
+                    switch tab {
+                    case .yourEntries:
+                        JournalView(isEmbedded: true, externalNavigationPath: $navigationPath)
+                    case .digDeeper:
+                        AIChatView(isEmbedded: true)
+                    }
+                }
+
+                // Floating header
+                VStack {
+                    TopNavHeader(
+                        selection: $selectedTab,
+                        onMenuTapped: {
+                            // Navigate to settings (or future menu)
+                            navigationPath.append(SettingsRoute.main)
+                        },
+                        onActionTapped: {
+                            // Context-aware action: search for Journal, new entry for Insights
+                            if selectedTab == .yourEntries {
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                                    showJournalSearch = true
+                                }
+                            } else {
+                                // Create new journal entry from Insights tab
+                                navigationPath.append(EntryRoute.create)
+                            }
+                        }
+                    )
+                    .padding(.top, safeAreaTop + 8)
+                    Spacer()
+                }
+
+                // FAB - Journal tab only, creates new entry
+                // Animates interactively with swipe progress
+                // Hidden completely when swipe progress > 95% to prevent lingering
+                if showAccessory && swipeProgress < 0.95 {
+                    PositionedNewEntryFAB(swipeProgress: swipeProgress) {
+                        navigationPath.append(EntryRoute.create)
+                    }
                 }
             }
-            .sheet(isPresented: $showAIChat) {
-                NavigationStack {
-                    AIChatView()
+            .ignoresSafeArea(edges: .all)
+            .overlay {
+                if showJournalSearch {
+                    JournalSearchView(isPresented: $showJournalSearch, navigationPath: $navigationPath)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .zIndex(100)
                 }
             }
-    }
-
-    
-    @ViewBuilder
-    private var tabViewContent: some View {
-        ZStack {
-            if #available(iOS 26.0, *) {
-                TabView(selection: $selectedTab) {
-                    JournalView()
-                        .tabItem {
-                            Label("Journal", systemImage: "book.closed")
-                        }
-                        .tag(0)
-
-                    insightsTab
-                        .tabItem {
-                            Label("Insights", systemImage: "sparkles")
-                        }
-                        .tag(1)
-                }
-                .tint(tabBarTint)
-                .tabViewStyle(.automatic)
-                .tabBarMinimizeBehavior(.onScrollDown)
-            } else if #available(iOS 18.0, *) {
-                TabView(selection: $selectedTab) {
-                    JournalView()
-                        .tabItem {
-                            Label("Journal", systemImage: "book.closed")
-                        }
-                        .tag(0)
-
-                    insightsTab
-                        .tabItem {
-                            Label("Insights", systemImage: "sparkles")
-                        }
-                        .tag(1)
-                }
-                .tint(tabBarTint)
-                .tabViewStyle(.sidebarAdaptable)
-            } else {
-                TabView(selection: $selectedTab) {
-                    JournalView()
-                        .tabItem {
-                            Label("Journal", systemImage: "book.closed")
-                        }
-                        .tag(0)
-
-                    insightsTab
-                        .tabItem {
-                            Label("Insights", systemImage: "sparkles")
-                        }
-                        .tag(1)
-                }
-                .tint(tabBarTint)
+            .navigationDestination(for: EntryRoute.self) { route in
+                entryDestination(for: route)
             }
-
-            // FAB overlay - bottom right
-            if showAccessory {
-                aiFAB
+            .navigationDestination(for: SettingsRoute.self) { route in
+                settingsDestination(for: route)
+            }
+        }
+        .environmentObject(entryViewModel)
+        .environment(\.selectedTab, $selectedTab)
+        .environment(\.tabBarHidden, $isTabBarHidden)
+        .environment(\.showAccessory, $showAccessory)
+        .useTheme()
+        .useTypography()
+        .onAppear {
+            if let tab = previewInitialTab, !didSetPreviewTab {
+                selectedTab = tab
+                didSetPreviewTab = true
+            }
+        }
+        .onChange(of: selectedTab) { _, newTab in
+            // Sync swipeProgress when tab changes via pill tap (fallback for geometry tracking)
+            withAnimation(.smooth(duration: 0.3)) {
+                swipeProgress = newTab == .yourEntries ? 0 : 1
             }
         }
     }
 
-    // MARK: - Insights Tab
+    // MARK: - Safe Area Helper
 
-    private var insightsTab: some View {
-        InsightsView()
+    private var safeAreaTop: CGFloat {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first?
+            .windows
+            .first { $0.isKeyWindow }?
+            .safeAreaInsets.top ?? 0
     }
 
-    // MARK: - AI Floating Action Button
+    // MARK: - Navigation Destinations
 
-    private var aiFAB: some View {
-        VStack {
-            Spacer()
-            HStack {
-                Spacer()
-                Button {
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    showAIChat = true
-                } label: {
-                    Image(systemName: "sparkles")
-                        .font(type.h3)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.white)
-                        .frame(width: 56, height: 56)
-                        .background(
-                            Circle()
-                                .fill(
-                                    LinearGradient(
-                                        colors: [theme.fabGradientStart, theme.fabGradientEnd],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    )
-                                )
-                        )
-                        .shadow(color: theme.primary.opacity(0.3), radius: 12, x: 0, y: 6)
-                }
-                .buttonStyle(.plain)
-                .padding(.trailing, 20)
-                .padding(.bottom, 56)
+    @ViewBuilder
+    private func entryDestination(for route: EntryRoute) -> some View {
+        switch route {
+        case .create:
+            AddEntryView(state: .create) { title, text in
+                entryViewModel.createEntry(title: title, text: text)
+                navigationPath.removeLast()
             }
+            .toolbar(.hidden, for: .tabBar)
+            .environment(\.fabVisible, false)
+        case .createWithTitle(let prefillTitle):
+            AddEntryView(state: .createWithTitle(prefillTitle)) { title, text in
+                entryViewModel.createEntry(title: title, text: text)
+                navigationPath.removeLast()
+            }
+            .toolbar(.hidden, for: .tabBar)
+            .environment(\.fabVisible, false)
+        case .edit(let entry):
+            AddEntryView(state: .edit(entry)) { title, text in
+                var updated = entry
+                updated.title = title
+                updated.text = text
+                entryViewModel.updateEntry(updated)
+                navigationPath.removeLast()
+            }
+            .toolbar(.hidden, for: .tabBar)
+            .environment(\.fabVisible, false)
+        }
+    }
+
+    @ViewBuilder
+    private func settingsDestination(for route: SettingsRoute) -> some View {
+        switch route {
+        case .main:
+            SettingsView()
+                .environmentObject(entryViewModel)
+                .environmentObject(authViewModel)
+                .toolbar(.hidden, for: .tabBar)
+                .environment(\.fabVisible, false)
+        case .profile:
+            ProfileSettingsView()
+                .toolbar(.hidden, for: .tabBar)
+                .environment(\.fabVisible, false)
+        case .appearance:
+            AppearanceSettingsView()
+                .toolbar(.hidden, for: .tabBar)
+                .environment(\.fabVisible, false)
+        case .about:
+            AboutSettingsView()
+                .toolbar(.hidden, for: .tabBar)
+                .environment(\.fabVisible, false)
         }
     }
 }
 
 // MARK: - Previews
-#Preview("Light • iPhone 15 Pro") {
+#Preview("Light - iPhone 15 Pro") {
     ContentView()
         .environmentObject(AuthViewModel())
         .preferredColorScheme(.light)
 }
 
-#Preview("Dark • iPhone 15 Pro") {
+#Preview("Dark - iPhone 15 Pro") {
     ContentView()
         .environmentObject(AuthViewModel())
         .preferredColorScheme(.dark)
@@ -271,7 +304,7 @@ public struct ContentView: View {
     @Previewable @StateObject var entryViewModel = EntryViewModel.withPreviewEntries()
     ContentView()
         .environment(\.previewEntryViewModel, entryViewModel)
-        .environment(\.previewInitialTab, 1)
+        .environment(\.previewInitialTab, .digDeeper)
         .environment(\.previewSkipLoadEntries, true)
         .environmentObject(AuthViewModel())
         .useTheme()

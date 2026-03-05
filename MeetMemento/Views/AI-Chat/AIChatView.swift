@@ -8,6 +8,9 @@
 import SwiftUI
 
 public struct AIChatView: View {
+    /// When true, hides the back button and adjusts layout for inline display in TopTabNavContainer
+    var isEmbedded: Bool = false
+
     @Environment(\.theme) private var theme
     @Environment(\.typography) private var type
     @Environment(\.dismiss) private var dismiss
@@ -18,8 +21,9 @@ public struct AIChatView: View {
     @State private var reviewedJournalCount: Int = 5 // Mock data
     @State private var selectedCitations: [JournalCitation]? = nil
     @State private var showCitationsSheet = false
-    @State private var inputAreaHeight: CGFloat = 104
     @State private var scrollTask: Task<Void, Never>?
+    @State private var scrollProxy: ScrollViewProxy?
+    @StateObject private var keyboardObserver = KeyboardObserver()
 
     private static let defaultSuggestions: [String] = [
         "Analyze my current mindset from my journal activity in the past week",
@@ -27,37 +31,55 @@ public struct AIChatView: View {
         "Summarize my journal entries in the last month"
     ]
 
-    public init() {}
+    public init(isEmbedded: Bool = false) {
+        self.isEmbedded = isEmbedded
+    }
     
+    /// Height reserved for floating header when embedded
+    private var topContentInset: CGFloat {
+        isEmbedded ? 100 : 16
+    }
+
     public var body: some View {
-        ZStack(alignment: .bottom) {
-            // Messages list - extends full screen
-            messagesScrollView
-                .padding(.bottom, inputAreaHeight) // Exact padding to prevent overlap
-            
-            // Floating input area with glass-like effect
-            floatingInputArea
+        GeometryReader { geometry in
+            ZStack(alignment: .bottom) {
+                // Messages list - fills available space with bottom inset for input
+                messagesScrollView
+                    .safeAreaInset(edge: .bottom, spacing: 0) {
+                        // Reserve space for input field (input height + padding + keyboard offset)
+                        Color.clear.frame(height: 88 + keyboardBottomPadding(geometry: geometry))
+                    }
+
+                // Input area - floats at bottom with no background
+                VStack {
+                    Spacer()
+                    floatingInputArea
+                        .padding(.bottom, keyboardBottomPadding(geometry: geometry))
+                }
+            }
         }
-        .background(theme.background)
+        .ignoresSafeArea(.keyboard) // Prevent double-adjustment
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
         .toolbar {
-            // Top navigation with glass-like effect
-            ToolbarItem(placement: .navigationBarLeading) {
-                Button {
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    dismiss()
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .font(type.body1Bold)
+            // Only show back button when NOT embedded (modal presentation)
+            if !isEmbedded {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        dismiss()
+                    } label: {
+                        Image(systemName: "chevron.left")
+                            .font(type.body1Bold)
+                    }
+                    .frame(width: 40, height: 40)
+                    .clipShape(Circle())
+                    .shadow(color: .black.opacity(0.08), radius: 2, x: 0, y: 0)
+                    .accessibilityLabel("Back")
                 }
-                .frame(width: 40, height: 40)
-                .clipShape(Circle())
-                .shadow(color: .black.opacity(0.08), radius: 2, x: 0, y: 0)
-                .accessibilityLabel("Back")
             }
         }
-        .toolbarBackground(.hidden, for: .navigationBar) // Hide default toolbar background
+        .toolbarBackground(.hidden, for: .navigationBar)
         .onAppear {
             loadInitialState()
         }
@@ -80,7 +102,8 @@ public struct AIChatView: View {
                 LazyVStack(spacing: 16) {
                     if messages.isEmpty && !isSending {
                         VStack(alignment: .leading, spacing: 24) {
-                            Spacer().frame(height: 80)
+                            // Extra top padding when embedded to account for floating header
+                            Spacer().frame(height: topContentInset + 20)
 
                             // Memento icon — left 32/132 of logo SVG rendered at 44pt height
                             Image("Memento-Logo")
@@ -139,9 +162,10 @@ public struct AIChatView: View {
                         .padding(16)
                     }
                 }
-                .padding(.bottom, 16) // Standard bottom padding
-                .padding(.top, 16) // Standard top padding with native navigation
+                .padding(.bottom, 16)
+                .padding(.top, topContentInset)
             }
+            .onAppear { scrollProxy = proxy }
             .onChange(of: messages.count) { oldCount, newCount in
                 scrollToBottom(proxy: proxy, count: newCount)
             }
@@ -156,6 +180,11 @@ public struct AIChatView: View {
                              proxy.scrollTo("loading-state", anchor: .bottom)
                          }
                      }
+                }
+            }
+            .onChange(of: keyboardObserver.isKeyboardVisible) { _, isVisible in
+                if isVisible {
+                    scrollToLatestMessage()
                 }
             }
             .onTapGesture {
@@ -177,8 +206,34 @@ public struct AIChatView: View {
     // MARK: - Floating Input Area
 
     private var floatingInputArea: some View {
-        VStack(spacing: 0) {
-            ChatInputField(text: $inputText, isSending: isSending, onSend: { sendMessage() })
+        ChatInputField(text: $inputText, isSending: isSending, onSend: { sendMessage() })
+    }
+
+    // MARK: - Keyboard Padding Calculation
+
+    private func keyboardBottomPadding(geometry: GeometryProxy) -> CGFloat {
+        if keyboardObserver.isKeyboardVisible {
+            // Keyboard is visible - position input above keyboard
+            let safeArea = geometry.safeAreaInsets.bottom
+            return max(keyboardObserver.keyboardHeight - safeArea, 0)
+        } else {
+            // Keyboard hidden - fixed 32px from bottom of screen
+            return 32
+        }
+    }
+
+    // MARK: - Scroll Helpers
+
+    private func scrollToLatestMessage() {
+        guard let proxy = scrollProxy else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            withAnimation(.easeOut(duration: 0.25)) {
+                if let lastMessage = messages.last {
+                    proxy.scrollTo(lastMessage.id, anchor: .bottom)
+                } else if isSending {
+                    proxy.scrollTo("loading-state", anchor: .bottom)
+                }
+            }
         }
     }
 

@@ -22,10 +22,15 @@ struct MonthHeaderPositionPreferenceKey: PreferenceKey {
 }
 
 public struct JournalView: View {
+    /// When true, hides internal NavigationStack (uses external from ContentView)
+    var isEmbedded: Bool = false
+    /// External navigation path binding when embedded
+    @Binding var externalNavigationPath: NavigationPath
+
     @EnvironmentObject var entryViewModel: EntryViewModel
     @EnvironmentObject var authViewModel: AuthViewModel
 
-    @State private var navigationPath = NavigationPath()
+    @State private var internalNavigationPath = NavigationPath()
 
     // Month picker state
     @State private var showMonthPicker = false
@@ -43,6 +48,11 @@ public struct JournalView: View {
     @Environment(\.typography) private var type
     @Environment(\.showAccessory) private var showAccessory
     @Environment(\.selectedTab) private var selectedTab
+
+    /// Use external navigation when embedded, internal when standalone
+    private var navigationPath: Binding<NavigationPath> {
+        isEmbedded ? $externalNavigationPath : $internalNavigationPath
+    }
 
     // MARK: - Computed Properties
 
@@ -79,11 +89,104 @@ public struct JournalView: View {
         return Array(Set(monthsForYear)).sorted()
     }
 
-    public init() {}
+    /// Dynamic inset for floating header (safe area top + header height + padding)
+    private var topHeaderInset: CGFloat {
+        let safeAreaTop = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first?
+            .windows
+            .first { $0.isKeyWindow }?
+            .safeAreaInsets.top ?? 0
+        // Header height (44) + vertical padding (8+8) + extra clearance (8)
+        return safeAreaTop + 68
+    }
+
+    public init(isEmbedded: Bool = false, externalNavigationPath: Binding<NavigationPath> = .constant(NavigationPath())) {
+        self.isEmbedded = isEmbedded
+        self._externalNavigationPath = externalNavigationPath
+    }
 
     public var body: some View {
-        NavigationStack(path: $navigationPath) {
-            YourEntriesView(
+        journalContent
+            .onChange(of: navigationPath.wrappedValue.count) { _, count in
+                // Only update if Journal tab is selected to avoid race condition
+                if selectedTab?.wrappedValue == .yourEntries {
+                    showAccessory?.wrappedValue = (count == 0)
+                }
+            }
+            .onAppear {
+                // Only update if Journal tab is selected to avoid race condition
+                if selectedTab?.wrappedValue == .yourEntries {
+                    showAccessory?.wrappedValue = (navigationPath.wrappedValue.count == 0)
+                }
+                loadingTask = Task {
+                    await entryViewModel.loadEntriesIfNeeded()
+                    guard !Task.isCancelled else { return }
+
+                    let calendar = Calendar.current
+                    let hasEntriesForCurrentMonth = entryViewModel.entriesByMonth.contains { monthGroup in
+                        calendar.isDate(monthGroup.monthStart, equalTo: Date(), toGranularity: .month)
+                    }
+
+                    if !hasEntriesForCurrentMonth, let mostRecent = entryViewModel.entriesByMonth.first {
+                        selectedDate = mostRecent.monthStart
+                        selectedMonth = calendar.component(.month, from: mostRecent.monthStart)
+                        selectedYear = calendar.component(.year, from: mostRecent.monthStart)
+                    }
+                }
+            }
+            .onDisappear {
+                loadingTask?.cancel()
+                loadingTask = nil
+            }
+            .sheet(isPresented: $showMonthPicker) {
+                monthPickerSheet
+            }
+    }
+
+    // MARK: - Journal Content
+
+    @ViewBuilder
+    private var journalContent: some View {
+        if isEmbedded {
+            // When embedded, don't wrap in NavigationStack (ContentView provides it)
+            coreContentView
+        } else {
+            // Standalone mode with own NavigationStack
+            NavigationStack(path: navigationPath) {
+                coreContentView
+                    .navigationDestination(for: EntryRoute.self) { route in
+                        entryDestination(for: route)
+                    }
+                    .navigationDestination(for: SettingsRoute.self) { route in
+                        settingsDestination(for: route)
+                    }
+                    .navigationDestination(for: AIChatRoute.self) { route in
+                        switch route {
+                        case .main:
+                            AIChatView()
+                                .toolbar(.hidden, for: .tabBar)
+                                .environment(\.fabVisible, false)
+                        }
+                    }
+                    .navigationDestination(for: MonthInsightRoute.self) { route in
+                        switch route {
+                        case .detail(let monthLabel, _):
+                            InsightsView()
+                                .environmentObject(entryViewModel)
+                                .navigationTitle(monthLabel)
+                                .navigationBarTitleDisplayMode(.large)
+                                .toolbar(.hidden, for: .tabBar)
+                                .environment(\.fabVisible, false)
+                        }
+                    }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var coreContentView: some View {
+        YourEntriesView(
                 entryViewModel: entryViewModel,
                 monthGroups: filteredEntriesByMonth,
                 onMonthVisibilityChanged: { monthStart in
@@ -94,118 +197,69 @@ public struct JournalView: View {
                     visibleMonthStart = monthStart
                 },
                 onNavigateToEntry: { route in
-                    navigationPath.append(route)
+                    navigationPath.wrappedValue.append(route)
                 }
             )
+            // Use safeAreaInset for proper scroll content insets when embedded
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if isEmbedded {
+                    // Spacer for floating header clearance (safe area + header height)
+                    Color.clear.frame(height: topHeaderInset)
+                }
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if isEmbedded {
+                    // Spacer for FAB clearance
+                    Color.clear.frame(height: 100)
+                }
+            }
             .background(theme.background.ignoresSafeArea())
             .toolbar {
-                // Leading: Calendar/Month button
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button {
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                        showMonthPicker = true
-                    } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: "calendar")
+                // Only show toolbar when NOT embedded (embedded uses TopNavHeader)
+                if !isEmbedded {
+                    // Leading: Hamburger menu (placeholder for future features)
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button {
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            // Future: Open side menu or feature panel
+                        } label: {
+                            Image(systemName: "line.3.horizontal")
                                 .font(type.h5)
-                            Text(currentMonthDisplay)
-                                .font(type.body2)
-                                .fontWeight(.semibold)
+                                .foregroundStyle(theme.foreground)
                         }
-                        .foregroundStyle(theme.foreground)
+                        .accessibilityLabel("Menu")
                     }
-                    .accessibilityLabel("Select Month - \(currentMonthDisplay)")
-                }
-                
-                // Leading: Settings button
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                        navigationPath.append(SettingsRoute.main)
-                    } label: {
-                        Image(systemName: "person.fill")
-                            .font(type.body1)
-                            .fontWeight(.medium)
-                            .foregroundStyle(theme.foreground)
-                    }
-                    .accessibilityLabel("person")
-                }
 
-                // Trailing: New Entry button
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                        navigationPath.append(EntryRoute.create)
-                    } label: {
-                        Image(systemName: "square.and.pencil")
-                            .font(type.body1)
-                            .fontWeight(.medium)
-                            .foregroundStyle(theme.foreground)
+                    // Trailing: Settings button
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button {
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            navigationPath.wrappedValue.append(SettingsRoute.main)
+                        } label: {
+                            Image(systemName: "person.fill")
+                                .font(type.body1)
+                                .fontWeight(.medium)
+                                .foregroundStyle(theme.foreground)
+                        }
+                        .accessibilityLabel("Settings")
                     }
-                    .accessibilityLabel("New Journal Entry")
+
+                    // Trailing: New Entry button
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button {
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            navigationPath.wrappedValue.append(EntryRoute.create)
+                        } label: {
+                            Image(systemName: "square.and.pencil")
+                                .font(type.body1)
+                                .fontWeight(.medium)
+                                .foregroundStyle(theme.foreground)
+                        }
+                        .accessibilityLabel("New Journal Entry")
+                    }
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
-            .navigationDestination(for: EntryRoute.self) { route in
-                entryDestination(for: route)
-            }
-            .navigationDestination(for: SettingsRoute.self) { route in
-                settingsDestination(for: route)
-            }
-            .navigationDestination(for: AIChatRoute.self) { route in
-                switch route {
-                case .main:
-                    AIChatView()
-                        .toolbar(.hidden, for: .tabBar)
-                        .environment(\.fabVisible, false)
-                }
-            }
-            .navigationDestination(for: MonthInsightRoute.self) { route in
-                switch route {
-                case .detail(let monthLabel, _):
-                    InsightsView()
-                        .environmentObject(entryViewModel)
-                        .navigationTitle(monthLabel)
-                        .navigationBarTitleDisplayMode(.large)
-                        .toolbar(.hidden, for: .tabBar)
-                        .environment(\.fabVisible, false)
-                }
-            }
-            .sheet(isPresented: $showMonthPicker) {
-                monthPickerSheet
-            }
-        }
-        .onChange(of: navigationPath.count) { _, count in
-            // Only update if Journal tab (0) is selected to avoid race condition
-            if selectedTab?.wrappedValue == 0 {
-                showAccessory?.wrappedValue = (count == 0)
-            }
-        }
-        .onAppear {
-            // Only update if Journal tab (0) is selected to avoid race condition
-            if selectedTab?.wrappedValue == 0 {
-                showAccessory?.wrappedValue = (navigationPath.count == 0)
-            }
-            loadingTask = Task {
-                await entryViewModel.loadEntriesIfNeeded()
-                guard !Task.isCancelled else { return }
-
-                let calendar = Calendar.current
-                let hasEntriesForCurrentMonth = entryViewModel.entriesByMonth.contains { monthGroup in
-                    calendar.isDate(monthGroup.monthStart, equalTo: Date(), toGranularity: .month)
-                }
-
-                if !hasEntriesForCurrentMonth, let mostRecent = entryViewModel.entriesByMonth.first {
-                    selectedDate = mostRecent.monthStart
-                    selectedMonth = calendar.component(.month, from: mostRecent.monthStart)
-                    selectedYear = calendar.component(.year, from: mostRecent.monthStart)
-                }
-            }
-        }
-        .onDisappear {
-            loadingTask?.cancel()
-            loadingTask = nil
-        }
     }
 
     // MARK: - Month Picker Sheet
@@ -282,14 +336,14 @@ public struct JournalView: View {
         case .create:
             AddEntryView(state: .create) { title, text in
                 entryViewModel.createEntry(title: title, text: text)
-                navigationPath.removeLast()
+                navigationPath.wrappedValue.removeLast()
             }
             .toolbar(.hidden, for: .tabBar)
             .environment(\.fabVisible, false)
         case .createWithTitle(let prefillTitle):
             AddEntryView(state: .createWithTitle(prefillTitle)) { title, text in
                 entryViewModel.createEntry(title: title, text: text)
-                navigationPath.removeLast()
+                navigationPath.wrappedValue.removeLast()
             }
             .toolbar(.hidden, for: .tabBar)
             .environment(\.fabVisible, false)
@@ -299,7 +353,7 @@ public struct JournalView: View {
                 updated.title = title
                 updated.text = text
                 entryViewModel.updateEntry(updated)
-                navigationPath.removeLast()
+                navigationPath.wrappedValue.removeLast()
             }
             .toolbar(.hidden, for: .tabBar)
             .environment(\.fabVisible, false)
@@ -333,7 +387,7 @@ public struct JournalView: View {
     // MARK: - Actions
 
     private func createEntry() {
-        navigationPath.append(EntryRoute.create)
+        navigationPath.wrappedValue.append(EntryRoute.create)
     }
 }
 

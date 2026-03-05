@@ -144,12 +144,6 @@ struct YourEntriesView: View {
     private var entriesList: some View {
         ScrollView(.vertical, showsIndicators: true) {
             LazyVStack(spacing: 32, pinnedViews: []) {
-                // Page title
-                Text("Your journal entries")
-                    .font(type.h3)
-                    .foregroundStyle(theme.foreground)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
                 // Welcome header
                 if !entryViewModel.userFirstName.isEmpty {
                     Text("Welcome, \(entryViewModel.userFirstName)")
@@ -183,6 +177,13 @@ struct YourEntriesView: View {
                 // Month groups - entries organized by month
                 ForEach(monthGroups) { monthGroup in
                     VStack(alignment: .leading, spacing: 16) {
+                        // Month header
+                        Text(monthGroup.monthLabel)
+                            .font(type.h3)
+                            .foregroundStyle(theme.foreground)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.top, 16)
+
                         // Entries for this month
                         VStack(spacing: 16) {
                             ForEach(monthGroup.entries) { entry in
