@@ -72,54 +72,38 @@ public struct OnboardingCoordinatorView: View {
     private func destinationView(for route: OnboardingRoute) -> some View {
         switch route {
         case .yourName:
-            YourNameView {
-                handleYourNameComplete()
-            }
-            .environmentObject(authViewModel)
+            YourNameView(onComplete: { handleYourNameComplete() }, isFirstStep: false, onBack: { handleBack() })
+                .environmentObject(authViewModel)
 
         case .learnAboutYourself:
-            LearnAboutYourselfView { userInput in
-                handleLearnAboutYourselfComplete(userInput)
-            }
-            .environmentObject(authViewModel)
+            LearnAboutYourselfView(onComplete: { userInput in handleLearnAboutYourselfComplete(userInput) }, isFirstStep: false, onBack: { handleBack() })
+                .environmentObject(authViewModel)
 
         case .yourGoals:
-            YourGoalsView {
-                handleYourGoalsComplete()
-            }
-            .environmentObject(authViewModel)
+            YourGoalsView(onComplete: { handleYourGoalsComplete() }, isFirstStep: false, onBack: { handleBack() })
+                .environmentObject(authViewModel)
 
         case .faceID:
             FaceIDView(
-                onUseFaceID: {
-                    handleUseFaceID()
-                },
-                onCreatePIN: {
-                    handleCreatePIN()
-                }
+                onUseFaceID: { handleUseFaceID() },
+                onCreatePIN: { handleCreatePIN() },
+                isFirstStep: false,
+                onBack: { handleBack() }
             )
             .environmentObject(authViewModel)
 
         case .setupPin:
             SetupPinView(
-                onComplete: { pin in
-                    handleSetupPinComplete(pin)
-                },
-                onCancel: {
-                    handlePinCancel()
-                }
+                onComplete: { pin in handleSetupPinComplete(pin) },
+                onCancel: { handleBack() }
             )
             .environmentObject(authViewModel)
 
         case .confirmPin(let originalPin):
             ConfirmPinView(
                 originalPin: originalPin,
-                onComplete: {
-                    handleConfirmPinComplete()
-                },
-                onCancel: {
-                    handlePinCancel()
-                }
+                onComplete: { handleConfirmPinComplete() },
+                onCancel: { handleBack() }
             )
             .environmentObject(authViewModel)
 
@@ -136,20 +120,20 @@ public struct OnboardingCoordinatorView: View {
     @ViewBuilder
     private var initialView: some View {
         if onboardingViewModel.shouldStartAtProfile {
-            // New flow starts with YourNameView
-            YourNameView {
-                handleYourNameComplete()
-            }
-            .environmentObject(authViewModel)
+            YourNameView(onComplete: { handleYourNameComplete() }, isFirstStep: true)
+                .environmentObject(authViewModel)
         } else if onboardingViewModel.shouldStartAtPersonalization {
-            LearnAboutYourselfView { userInput in
-                handleLearnAboutYourselfComplete(userInput)
-            }
-            .environmentObject(authViewModel)
+            LearnAboutYourselfView(onComplete: { userInput in handleLearnAboutYourselfComplete(userInput) }, isFirstStep: true)
+                .environmentObject(authViewModel)
+        } else if onboardingViewModel.shouldStartAtGoals {
+            YourGoalsView(onComplete: { handleYourGoalsComplete() }, isFirstStep: true)
+                .environmentObject(authViewModel)
         } else {
-            LoadingStateView {
-                handleOnboardingComplete()
-            }
+            FaceIDView(
+                onUseFaceID: { handleUseFaceID() },
+                onCreatePIN: { handleCreatePIN() },
+                isFirstStep: true
+            )
             .environmentObject(authViewModel)
         }
     }
@@ -157,22 +141,51 @@ public struct OnboardingCoordinatorView: View {
     // MARK: - Navigation Handlers
 
     private func handleYourNameComplete() {
-        onboardingViewModel.hasProfile = true
-        navigationPath.append(OnboardingRoute.learnAboutYourself)
+        Task {
+            do {
+                try await onboardingViewModel.saveProfileData()
+            } catch {
+                print("⚠️ Failed to save profile: \(error)")
+                onboardingViewModel.hasProfile = true
+            }
+            await MainActor.run {
+                navigationPath.append(OnboardingRoute.learnAboutYourself)
+            }
+        }
     }
 
     private func handleLearnAboutYourselfComplete(_ userInput: String) {
         onboardingViewModel.personalizationText = userInput
-        navigationPath.append(OnboardingRoute.yourGoals)
+        Task {
+            do {
+                try await onboardingViewModel.savePersonalizationText()
+            } catch {
+                print("⚠️ Failed to save personalization: \(error)")
+                onboardingViewModel.hasPersonalization = true
+            }
+            await MainActor.run {
+                navigationPath.append(OnboardingRoute.yourGoals)
+            }
+        }
     }
 
     private func handleYourGoalsComplete() {
-        navigationPath.append(OnboardingRoute.faceID)
+        Task {
+            do {
+                try await onboardingViewModel.saveGoals()
+            } catch {
+                print("⚠️ Failed to save goals: \(error)")
+                onboardingViewModel.hasGoals = true
+            }
+            await MainActor.run {
+                navigationPath.append(OnboardingRoute.faceID)
+            }
+        }
     }
 
     private func handleUseFaceID() {
         onboardingViewModel.useFaceID = true
-        // Skip PIN setup, go straight to loading/completion
+        SecurityService.shared.setSecurityMode(.faceID)
         finishSecuritySetup()
     }
 
@@ -186,18 +199,22 @@ public struct OnboardingCoordinatorView: View {
     }
 
     private func handleConfirmPinComplete() {
+        // Store confirmed PIN in Keychain
+        let pin = onboardingViewModel.confirmedPin
+        if !pin.isEmpty {
+            _ = SecurityService.shared.savePIN(pin)
+            SecurityService.shared.setSecurityMode(.pin)
+        }
         finishSecuritySetup()
     }
 
-    private func handlePinCancel() {
-        // Go back to FaceID view
+    private func handleBack() {
         if !navigationPath.isEmpty {
             navigationPath.removeLast()
         }
     }
 
     private func finishSecuritySetup() {
-        // Create journal entry and complete onboarding
         Task {
             do {
                 if !onboardingViewModel.personalizationText.isEmpty {
@@ -205,16 +222,11 @@ public struct OnboardingCoordinatorView: View {
                         text: onboardingViewModel.personalizationText
                     )
                 }
-                await MainActor.run {
-                    onboardingViewModel.hasPersonalization = true
-                    navigationPath.append(OnboardingRoute.loading)
-                }
             } catch {
-                await MainActor.run {
-                    onboardingViewModel.errorMessage = error.localizedDescription
-                    // Still navigate to loading on error for now
-                    navigationPath.append(OnboardingRoute.loading)
-                }
+                print("⚠️ Failed to create first journal entry: \(error)")
+            }
+            await MainActor.run {
+                navigationPath.append(OnboardingRoute.loading)
             }
         }
     }
@@ -225,9 +237,13 @@ public struct OnboardingCoordinatorView: View {
                 try await onboardingViewModel.completeOnboarding()
                 await MainActor.run {
                     authViewModel.hasCompletedOnboarding = true
+                    authViewModel.clearPendingProfile()
                 }
             } catch {
-                // Stub: Log error
+                print("⚠️ Failed to mark onboarding complete: \(error)")
+                await MainActor.run {
+                    authViewModel.hasCompletedOnboarding = true
+                }
             }
         }
     }

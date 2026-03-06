@@ -29,63 +29,62 @@ public struct LearnAboutYourselfView: View {
 
     // Callback for when user completes this step
     public var onComplete: ((String) -> Void)?
+    public var isFirstStep: Bool = false
+    public var onBack: (() -> Void)?
 
-    public init(onComplete: ((String) -> Void)? = nil) {
+    public init(onComplete: ((String) -> Void)? = nil, isFirstStep: Bool = false, onBack: (() -> Void)? = nil) {
         self.onComplete = onComplete
+        self.isFirstStep = isFirstStep
+        self.onBack = onBack
     }
 
     public var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                // Title section — same layout as AddEntryView (title area + body)
-                titleSection
-                    .padding(.top, 24)
+        ZStack {
+            theme.background.ignoresSafeArea()
 
-                // Body editor - same style as AddEntryView
-                bodyField
-                    .padding(.top, 16)
+            VStack(spacing: 0) {
+                // Custom header with back button
+                headerSection
 
-                // Character count indicator
-                characterCounter
-                    .padding(.top, 12)
+                // Content area
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        // Title section
+                        titleSection
+                            .padding(.top, 8)
 
-                Spacer(minLength: 120)
-            }
-            .padding(.horizontal, 20)
-        }
-        .background(theme.background.ignoresSafeArea())
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Button {
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    dismiss()
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .font(type.body1Bold)
-                        .foregroundStyle(theme.foreground)
+                        // Body editor - same style as AddEntryView
+                        bodyField
+                            .padding(.top, 16)
+
+                        // Character count indicator
+                        characterCounter
+                            .padding(.top, 12)
+
+                        Spacer(minLength: 120)
+                    }
+                    .padding(.horizontal, 20)
                 }
-                .accessibilityLabel("Back")
             }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
+
+            // Continue button at bottom
+            VStack {
+                Spacer()
+                PrimaryButton(title: "Continue") {
                     completeStep()
-                } label: {
-                    Image(systemName: "checkmark")
-                        .font(type.body1Bold)
-                        .foregroundStyle(showCheckmark ? theme.primary : theme.mutedForeground.opacity(0.5))
                 }
-                .disabled(!showCheckmark)
                 .opacity(showCheckmark ? 1.0 : 0.5)
-                .animation(.spring(response: 0.35, dampingFraction: 0.75), value: showCheckmark)
-                .accessibilityLabel("Save")
+                .disabled(!showCheckmark)
                 .accessibilityHint(showCheckmark ? "Save and continue" : "Enter at least 100 characters to continue")
+                .padding(.horizontal, 20)
+                .padding(.bottom, 32)
             }
         }
         .overlay(alignment: .bottom) {
             microphoneFAB
-                .padding(.bottom, 32)
+                .padding(.bottom, 100)
         }
+        .navigationBarHidden(true)
         .onAppear {
             // Auto-focus the text editor after a brief delay
             Task { @MainActor in
@@ -134,6 +133,49 @@ public struct LearnAboutYourselfView: View {
     }
 
     // MARK: - Subviews
+
+    private var headerSection: some View {
+        ZStack(alignment: .top) {
+            // Background gradient
+            LinearGradient(
+                gradient: Gradient(stops: [
+                    .init(color: theme.background, location: 0),
+                    .init(color: theme.background.opacity(0), location: 1)
+                ]),
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea(edges: .top)
+            .allowsHitTesting(false)
+            .frame(height: 64)
+
+            // Header content
+            HStack(alignment: .center, spacing: 12) {
+                // Back button (hidden on first step)
+                if !isFirstStep {
+                    IconButtonNav(
+                        icon: "chevron.left",
+                        iconSize: 20,
+                        buttonSize: 40,
+                        foregroundColor: theme.foreground,
+                        useDarkBackground: false,
+                        enableHaptic: true,
+                        onTap: { onBack?() ?? dismiss() }
+                    )
+                    .accessibilityLabel("Back")
+                }
+
+                Spacer()
+
+                // Placeholder for alignment
+                Color.clear
+                    .frame(width: 40, height: 40)
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+            .padding(.bottom, 16)
+        }
+    }
 
     private var titleSection: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -191,7 +233,7 @@ public struct LearnAboutYourselfView: View {
     }
     
     private var fabWidth: CGFloat {
-        speechService.isRecording ? 120 : 64
+        speechService.isRecording ? 96 : 48
     }
 
     // MARK: - Actions
@@ -229,7 +271,7 @@ public struct LearnAboutYourselfView: View {
     }
     
     // MARK: - Microphone FAB
-    
+
     private var microphoneFAB: some View {
         Button {
             // Provide haptic feedback for button tap
@@ -255,35 +297,42 @@ public struct LearnAboutYourselfView: View {
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: speechService.isRecording ? "stop.fill" : "mic.fill")
-                    .font(.system(size: 22))
-                    .foregroundColor(.white)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(speechService.isRecording ? Color.red : theme.foreground)
 
                 // Duration timer appears inside button when recording
                 if speechService.isRecording {
                     Text(formatDuration(speechService.currentDuration))
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
-                        .foregroundColor(.white)
+                        .font(type.body2Bold)
+                        .foregroundStyle(theme.destructive)
                         .transition(.opacity.combined(with: .scale(scale: 0.8)))
                 }
             }
-            .frame(width: fabWidth, height: 64)
-            .background(
-                Capsule()
-                    .fill(
-                        LinearGradient(
-                            colors: speechService.isRecording
-                                ? [Color.red.opacity(0.8), Color.red]
-                                : [theme.fabGradientStart, theme.fabGradientEnd],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-            )
+            .frame(width: fabWidth, height: 48)
+            .background(microphoneFABBackground)
             .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.75), value: speechService.isRecording)
         .accessibilityLabel(speechService.isRecording ? "Stop recording" : "Start voice recording")
         .accessibilityHint(speechService.isRecording ? "Double-tap to stop and insert text" : "Double-tap to record your voice")
+    }
+
+    @ViewBuilder
+    private var microphoneFABBackground: some View {
+        if #available(iOS 26.0, *) {
+            // iOS 26: Liquid glass with frosted effect
+            Capsule()
+                .fill(Color.white.opacity(0.3))
+                .glassEffect(.regular.interactive(), in: Capsule())
+        } else {
+            // iOS 18+: Ultra thin material fallback
+            Capsule()
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    Capsule()
+                        .strokeBorder(Color.white.opacity(0.3), lineWidth: 1)
+                )
+        }
     }
 }
 

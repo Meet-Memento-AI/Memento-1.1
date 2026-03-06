@@ -2,52 +2,14 @@
 //  AuthBottomSheet.swift
 //  MeetMemento
 //
-//  Unified bottom sheet component for user authentication (sign-up and sign-in).
-//  Consolidates CreateAccountBottomSheet and SignInBottomSheet to eliminate duplication.
+//  Email-only authentication sheet. Social auth (Apple/Google) lives on WelcomeView.
 //
 
 import SwiftUI
-import UIKit
 
 public struct AuthBottomSheet: View {
-    // MARK: - Mode
-
-    public enum Mode {
-        case signUp
-        case signIn
-
-        var title: String {
-            switch self {
-            case .signUp: return "Create account"
-            case .signIn: return "Sign in"
-            }
-        }
-
-        var subtitle: String {
-            switch self {
-            case .signUp: return "Let's learn about you and we'll help you get started"
-            case .signIn: return "Make sure to use your same login credentials."
-            }
-        }
-
-        var isSignUp: Bool {
-            switch self {
-            case .signUp: return true
-            case .signIn: return false
-            }
-        }
-
-        var statusPrefix: String {
-            switch self {
-            case .signUp: return "sign-up"
-            case .signIn: return "sign-in"
-            }
-        }
-    }
-
     // MARK: - Properties
 
-    let mode: Mode
     public var onSuccess: (() -> Void)?
 
     // MARK: - Environment
@@ -62,14 +24,11 @@ public struct AuthBottomSheet: View {
     @State private var email: String = ""
     @State private var status: String = ""
     @State private var isLoading: Bool = false
-    @State private var isAppleLoading: Bool = false
-    @State private var isGoogleLoading: Bool = false
     @State private var navigateToOTP: Bool = false
 
     // MARK: - Initializer
 
-    public init(mode: Mode, onSuccess: (() -> Void)? = nil) {
-        self.mode = mode
+    public init(onSuccess: (() -> Void)? = nil) {
         self.onSuccess = onSuccess
     }
 
@@ -78,20 +37,18 @@ public struct AuthBottomSheet: View {
     public var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                // Handle bar
                 RoundedRectangle(cornerRadius: 2.5)
                     .fill(theme.mutedForeground.opacity(0.3))
                     .frame(width: 36, height: 5)
                     .padding(.top, 8)
                     .padding(.bottom, 20)
 
-                // Header
                 VStack(alignment: .leading, spacing: 12) {
-                    Text(mode.title)
+                    Text("Continue with email")
                         .font(type.h5)
                         .foregroundStyle(theme.foreground)
 
-                    Text(mode.subtitle)
+                    Text("Enter your email and we'll send you a verification code.")
                         .font(type.body1)
                         .lineSpacing(type.bodyLineSpacing)
                         .foregroundStyle(theme.mutedForeground)
@@ -101,9 +58,7 @@ public struct AuthBottomSheet: View {
                 .padding(.top, 24)
                 .padding(.bottom, 24)
 
-                // Content
                 VStack(spacing: 24) {
-                    // Email input
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Email")
                             .font(type.body1)
@@ -117,86 +72,17 @@ public struct AuthBottomSheet: View {
                         )
                     }
 
-                    // Continue button
                     PrimaryButton(title: "Continue", isLoading: isLoading) {
                         sendOTP()
                     }
                     .disabled(email.isEmpty || isLoading)
                     .opacity((email.isEmpty || isLoading) ? 0.6 : 1.0)
 
-                    // Divider
-                    HStack(spacing: 16) {
-                        Rectangle()
-                            .fill(theme.border)
-                            .frame(height: 1)
-                        Text("or")
-                            .font(type.body2)
-                            .foregroundStyle(theme.mutedForeground)
-                        Rectangle()
-                            .fill(theme.border)
-                            .frame(height: 1)
-                    }
-                    .padding(.vertical, 8)
-
-                    // Social auth buttons
-                    VStack(spacing: 12) {
-                        Button(action: { signInWithApple() }) {
-                            HStack(spacing: 8) {
-                                if isAppleLoading {
-                                    ProgressView()
-                                        .tint(.white)
-                                } else {
-                                    Image(systemName: "apple.logo")
-                                        .font(.system(size: 18, weight: .medium))
-                                }
-                                Text("Continue with Apple")
-                                    .font(type.body1Bold)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 16)
-                            .background(.black)
-                            .foregroundStyle(.white)
-                            .clipShape(RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous))
-                        }
-                        .disabled(isAppleLoading || isGoogleLoading)
-                        .opacity((isAppleLoading || isGoogleLoading) ? 0.7 : 1.0)
-
-                        GoogleSignInButton(
-                            title: isGoogleLoading ? "Signing in..." : "Continue with Google",
-                            scheme: .light
-                        ) {
-                            signInWithGoogle()
-                        }
-                        .disabled(isAppleLoading || isGoogleLoading)
-                        .opacity((isAppleLoading || isGoogleLoading) ? 0.7 : 1.0)
-                    }
-
-                    // Status message
                     if !status.isEmpty {
                         Text(status)
                             .font(type.body2)
-                            .foregroundStyle(status.contains("✅") ? .green : theme.mutedForeground)
+                            .foregroundStyle(status.contains("✅") ? .green : theme.destructive)
                             .multilineTextAlignment(.center)
-                    }
-
-                    // Skip to onboarding (only for sign-up, for UI testing)
-                    if mode == .signUp {
-                        SecondaryButton(title: "Skip to onboarding") {
-                            onSuccess?()
-                            DispatchQueue.main.async {
-                                authViewModel.skipToOnboardingForTesting()
-                            }
-                        }
-                    }
-
-                    // Skip to dashboard (only for sign-in, for UI testing)
-                    if mode == .signIn {
-                        SecondaryButton(title: "Skip to dashboard") {
-                            onSuccess?()
-                            DispatchQueue.main.async {
-                                authViewModel.bypassToMainApp()
-                            }
-                        }
                     }
                 }
                 .padding(.horizontal, 20)
@@ -207,11 +93,11 @@ public struct AuthBottomSheet: View {
             .background(theme.background)
             .navigationBarHidden(true)
             .navigationDestination(isPresented: $navigateToOTP) {
-                OTPVerificationView(email: email, isSignUp: mode.isSignUp)
+                OTPVerificationView(email: email)
                     .environmentObject(authViewModel)
             }
         }
-        .presentationDetents([.height(560)])
+        .presentationDetents([.height(420)])
         .presentationDragIndicator(.hidden)
         .onChange(of: authViewModel.isAuthenticated) { _, isAuth in
             if isAuth {
@@ -247,70 +133,12 @@ public struct AuthBottomSheet: View {
             }
         }
     }
-
-    private func signInWithApple() {
-        isAppleLoading = true
-        status = ""
-
-        Task {
-            do {
-                try await authViewModel.signInWithApple()
-                await MainActor.run {
-                    isAppleLoading = false
-                    // Auth state change will trigger onSuccess via onChange
-                }
-            } catch let error as AppleSignInError {
-                await MainActor.run {
-                    isAppleLoading = false
-                    if case .canceled = error {
-                        // User canceled, don't show error
-                        status = ""
-                    } else {
-                        status = error.localizedDescription
-                    }
-                }
-            } catch {
-                await MainActor.run {
-                    isAppleLoading = false
-                    status = "Apple Sign In failed. Please try again."
-                }
-            }
-        }
-    }
-
-    private func signInWithGoogle() {
-        isGoogleLoading = true
-        status = ""
-
-        Task {
-            do {
-                let url = try await authViewModel.signInWithGoogle()
-                await MainActor.run {
-                    isGoogleLoading = false
-                    // Open URL in Safari for OAuth flow
-                    UIApplication.shared.open(url)
-                }
-            } catch {
-                await MainActor.run {
-                    isGoogleLoading = false
-                    status = "Google Sign In failed. Please try again."
-                }
-            }
-        }
-    }
 }
 
 // MARK: - Previews
 
-#Preview("Sign Up") {
-    AuthBottomSheet(mode: .signUp)
-        .useTheme()
-        .useTypography()
-        .environmentObject(AuthViewModel())
-}
-
-#Preview("Sign In") {
-    AuthBottomSheet(mode: .signIn)
+#Preview("Email Auth") {
+    AuthBottomSheet()
         .useTheme()
         .useTypography()
         .environmentObject(AuthViewModel())

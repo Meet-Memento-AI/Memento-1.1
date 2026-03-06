@@ -12,14 +12,20 @@ public struct YourNameView: View {
     @Environment(\.theme) private var theme
     @Environment(\.typography) private var type
     @EnvironmentObject var onboardingViewModel: OnboardingViewModel
+    @EnvironmentObject var authViewModel: AuthViewModel
 
     @State private var firstName: String = ""
     @State private var lastName: String = ""
+    @State private var didPreFill = false
 
     public var onComplete: (() -> Void)?
+    public var isFirstStep: Bool = false
+    public var onBack: (() -> Void)?
 
-    public init(onComplete: (() -> Void)? = nil) {
+    public init(onComplete: (() -> Void)? = nil, isFirstStep: Bool = false, onBack: (() -> Void)? = nil) {
         self.onComplete = onComplete
+        self.isFirstStep = isFirstStep
+        self.onBack = onBack
     }
 
     public var body: some View {
@@ -60,6 +66,17 @@ public struct YourNameView: View {
             }
         }
         .navigationBarHidden(true)
+        .onAppear {
+            if !didPreFill {
+                didPreFill = true
+                if let pending = authViewModel.pendingFirstName, !pending.isEmpty, firstName.isEmpty {
+                    firstName = pending
+                }
+                if let pending = authViewModel.pendingLastName, !pending.isEmpty, lastName.isEmpty {
+                    lastName = pending
+                }
+            }
+        }
     }
 
     // MARK: - Subviews
@@ -81,17 +98,19 @@ public struct YourNameView: View {
 
             // Header content
             HStack(alignment: .center, spacing: 12) {
-                // Back button
-                IconButtonNav(
-                    icon: "chevron.left",
-                    iconSize: 20,
-                    buttonSize: 40,
-                    foregroundColor: theme.foreground,
-                    useDarkBackground: false,
-                    enableHaptic: true,
-                    onTap: { dismiss() }
-                )
-                .accessibilityLabel("Back")
+                // Back button (hidden on first step)
+                if !isFirstStep {
+                    IconButtonNav(
+                        icon: "chevron.left",
+                        iconSize: 20,
+                        buttonSize: 40,
+                        foregroundColor: theme.foreground,
+                        useDarkBackground: false,
+                        enableHaptic: true,
+                        onTap: { onBack?() ?? dismiss() }
+                    )
+                    .accessibilityLabel("Back")
+                }
 
                 Spacer()
 
@@ -107,30 +126,19 @@ public struct YourNameView: View {
 
     private var titleSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Meet Memento, your AI journal")
+            Text("What's your name")
                 .font(type.h3)
                 .foregroundStyle(theme.foreground)
 
-            Text("I'm your personal journalling assistant. You can write journal entries, and we can talk about them in depth. I'll remember as much as you'd like me to!")
-                .font(.system(size: 17))
-                .lineSpacing(3.4)
+            Text("We’d like to know more about you. This shouldn’t take more than 5 minutes.")
+                .font(type.body1)
                 .foregroundStyle(theme.mutedForeground)
-
-            Text("Before we get started, I'd like to get to know you better.")
-                .font(.system(size: 17))
-                .lineSpacing(3.4)
-                .foregroundStyle(theme.mutedForeground)
-                .padding(.top, 8)
         }
     }
 
     private var inputFieldsSection: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 8) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("What's your first name?")
-                    .font(.system(size: 17, weight: .medium))
-                    .foregroundStyle(theme.foreground)
-
                 AppTextField(
                     placeholder: "First name",
                     text: $firstName,
@@ -139,9 +147,6 @@ public struct YourNameView: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("What's your last name?")
-                    .font(.system(size: 17, weight: .medium))
-                    .foregroundStyle(theme.foreground)
 
                 AppTextField(
                     placeholder: "Last name",
@@ -181,6 +186,7 @@ public struct YourNameView: View {
         .useTheme()
         .useTypography()
         .environmentObject(OnboardingViewModel())
+        .environmentObject(AuthViewModel())
         .preferredColorScheme(.light)
 }
 
@@ -189,5 +195,6 @@ public struct YourNameView: View {
         .useTheme()
         .useTypography()
         .environmentObject(OnboardingViewModel())
+        .environmentObject(AuthViewModel())
         .preferredColorScheme(.dark)
 }

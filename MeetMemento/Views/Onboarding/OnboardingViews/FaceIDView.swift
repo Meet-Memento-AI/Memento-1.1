@@ -15,13 +15,19 @@ public struct FaceIDView: View {
 
     public var onUseFaceID: (() -> Void)?
     public var onCreatePIN: (() -> Void)?
+    public var isFirstStep: Bool = false
+    public var onBack: (() -> Void)?
 
     public init(
         onUseFaceID: (() -> Void)? = nil,
-        onCreatePIN: (() -> Void)? = nil
+        onCreatePIN: (() -> Void)? = nil,
+        isFirstStep: Bool = false,
+        onBack: (() -> Void)? = nil
     ) {
         self.onUseFaceID = onUseFaceID
         self.onCreatePIN = onCreatePIN
+        self.isFirstStep = isFirstStep
+        self.onBack = onBack
     }
 
     public var body: some View {
@@ -98,17 +104,19 @@ public struct FaceIDView: View {
 
             // Header content
             HStack(alignment: .center, spacing: 12) {
-                // Back button
-                IconButtonNav(
-                    icon: "chevron.left",
-                    iconSize: 20,
-                    buttonSize: 40,
-                    foregroundColor: theme.foreground,
-                    useDarkBackground: false,
-                    enableHaptic: true,
-                    onTap: { dismiss() }
-                )
-                .accessibilityLabel("Back")
+                // Back button (hidden on first step)
+                if !isFirstStep {
+                    IconButtonNav(
+                        icon: "chevron.left",
+                        iconSize: 20,
+                        buttonSize: 40,
+                        foregroundColor: theme.foreground,
+                        useDarkBackground: false,
+                        enableHaptic: true,
+                        onTap: { onBack?() ?? dismiss() }
+                    )
+                    .accessibilityLabel("Back")
+                }
 
                 Spacer()
 

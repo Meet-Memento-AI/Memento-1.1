@@ -19,7 +19,7 @@ public struct GoogleSignInButton: View {
 
     // MARK: – Sizing & spacing
     private let height: CGFloat = 56
-    private let cornerRadius: CGFloat = 12
+    private let cornerRadius: CGFloat = 28 // Fully round (height / 2)
     private let borderWidth: CGFloat = 1
     private let iconSize: CGFloat = 20
     private let horizontalPadding: CGFloat = 12
@@ -35,13 +35,13 @@ public struct GoogleSignInButton: View {
     }
     private var textColor: Color {
         switch scheme {
-        case .light: return Color(hex: "#3C4043") // Google text gray
+        case .light: return Color(red: 60/255, green: 64/255, blue: 67/255) // Google text gray #3C4043
         case .dark:  return .white
         }
     }
     private var borderColor: Color {
         switch scheme {
-        case .light: return Color(hex: "#DADCE0")
+        case .light: return Color(red: 218/255, green: 220/255, blue: 224/255) // #DADCE0
         case .dark:  return .clear
         }
     }
@@ -68,7 +68,7 @@ public struct GoogleSignInButton: View {
     private var disabledBorder: Color {
         // #1f1f1f1f (~12% opacity) for light; transparent for dark
         switch scheme {
-        case .light: return Color(hex: "#1F1F1F").opacity(0.12)
+        case .light: return Color(red: 31/255, green: 31/255, blue: 31/255).opacity(0.12) // #1F1F1F
         case .dark:  return .clear
         }
     }

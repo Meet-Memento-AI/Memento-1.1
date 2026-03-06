@@ -16,17 +16,6 @@ private struct GenerateInsightsRequest: Codable {
     let entries: [JournalEntryPayload]
 }
 
-/// Request body for chat-with-entries Edge Function
-private struct ChatRequest: Codable {
-    let messages: [ChatMessagePayload]
-    let entries: [JournalEntryPayload]
-}
-
-private struct ChatMessagePayload: Codable {
-    let content: String
-    let isFromUser: String
-}
-
 class InsightsService {
     static let shared = InsightsService()
     
@@ -182,38 +171,6 @@ class InsightsService {
 
             throw error
         }
-    }
-
-
-    /// Sends a chat message history + context entries to the AI and returns the response.
-    func chat(messages: [ChatMessage], entries: [Entry]) async throws -> AIOutputContent {
-        #if DEBUG
-        print("💬 [InsightsService] Sending chat with \(entries.count) entries context")
-        #endif
-
-        let payloadEntries = entries.map { entry in
-            JournalEntryPayload(
-                date: ISO8601DateFormatter().string(from: entry.createdAt),
-                title: entry.title.isEmpty ? "Untitled" : entry.title,
-                content: entry.text,
-                word_count: entry.text.split(separator: " ").count
-            )
-        }
-
-        let payloadMessages = messages.map { msg in
-            ChatMessagePayload(
-                content: msg.content,
-                isFromUser: String(msg.isFromUser)
-            )
-        }
-
-        let requestBody = ChatRequest(messages: payloadMessages, entries: payloadEntries)
-
-        let content: AIOutputContent = try await client.functions.invoke(
-            "chat-with-entries",
-            options: FunctionInvokeOptions(body: requestBody)
-        )
-        return content
     }
 }
 

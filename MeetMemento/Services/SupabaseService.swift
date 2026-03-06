@@ -20,7 +20,12 @@ class SupabaseService {
         self.supabaseUrl = url
         self.client = SupabaseClient(
             supabaseURL: supabaseUrl,
-            supabaseKey: supabaseKey
+            supabaseKey: supabaseKey,
+            options: .init(
+                auth: .init(
+                    redirectToURL: URL(string: "memento://auth/callback")
+                )
+            )
         )
     }
 }

@@ -109,24 +109,43 @@ public struct ConfirmPinView: View {
     // MARK: - Subviews
 
     private var headerSection: some View {
-        HStack {
-            // Back button
-            IconButtonNav(
-                icon: "chevron.left",
-                iconSize: 20,
-                buttonSize: 40,
-                foregroundColor: theme.foreground,
-                useDarkBackground: false,
-                enableHaptic: true,
-                onTap: { dismiss() }
+        ZStack(alignment: .top) {
+            // Background gradient
+            LinearGradient(
+                gradient: Gradient(stops: [
+                    .init(color: theme.background, location: 0),
+                    .init(color: theme.background.opacity(0), location: 1)
+                ]),
+                startPoint: .top,
+                endPoint: .bottom
             )
-            .accessibilityLabel("Back")
+            .ignoresSafeArea(edges: .top)
+            .allowsHitTesting(false)
+            .frame(height: 64)
 
-            Spacer()
+            // Header content
+            HStack(alignment: .center, spacing: 12) {
+                // Back button (calls coordinator onCancel, or dismiss when used standalone)
+                IconButtonNav(
+                    icon: "chevron.left",
+                    iconSize: 20,
+                    buttonSize: 40,
+                    foregroundColor: theme.foreground,
+                    useDarkBackground: false,
+                    enableHaptic: true,
+                    onTap: { onCancel?() ?? dismiss() }
+                )
+                .accessibilityLabel("Back")
+
+                Spacer()
+
+                Color.clear
+                    .frame(width: 40, height: 40)
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+            .padding(.bottom, 16)
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 12)
-        .padding(.bottom, 16)
     }
 
     private var pinInputFields: some View {

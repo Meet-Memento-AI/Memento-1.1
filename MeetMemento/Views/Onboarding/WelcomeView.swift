@@ -2,26 +2,22 @@
 //  WelcomeView.swift
 //  MeetMemento
 //
-//  Welcome screen (UI boilerplate).
+//  Welcome screen with carousel and unified auth buttons.
 //
 
 import SwiftUI
 
 public struct WelcomeView: View {
-    public var onNext: (() -> Void)?
-
     @Environment(\.theme) private var theme
     @Environment(\.typography) private var type
     @EnvironmentObject var authViewModel: AuthViewModel
 
-    @State private var showCreateAccountSheet = false
-    @State private var showSignInSheet = false
-    @State private var showOnboardingFlow = false
     @State private var carouselPage = 0
+    @State private var isAppleLoading = false
+    @State private var isGoogleLoading = false
+    @State private var authError: String = ""
 
-    public init(onNext: (() -> Void)? = nil) {
-        self.onNext = onNext
-    }
+    public init() {}
 
     public var body: some View {
         let isDarkBackground = carouselPage == 1
@@ -32,7 +28,6 @@ public struct WelcomeView: View {
                 // Centered Carousel
                 VStack(spacing: 32) {
                     TabView(selection: $carouselPage) {
-                        // Page 0: Stacked Cards
                         VStack(spacing: 0) {
                             carouselHeader(
                                 title: carouselItems[0].title,
@@ -43,7 +38,6 @@ public struct WelcomeView: View {
                         }
                         .tag(0)
 
-                        // Page 1: Sentiment Analysis
                         VStack(spacing: 0) {
                             carouselHeader(
                                 title: carouselItems[1].title,
@@ -54,7 +48,6 @@ public struct WelcomeView: View {
                         }
                         .tag(1)
 
-                        // Page 2: Value Banner
                         VStack(spacing: 0) {
                             carouselHeader(
                                 title: carouselItems[2].title,
@@ -68,14 +61,13 @@ public struct WelcomeView: View {
                     }
                     .tabViewStyle(.page(indexDisplayMode: .never))
                     .frame(height: 520)
-                    .padding(.horizontal, -16) // Extend to edges, counteract parent padding
+                    .padding(.horizontal, -16)
 
-                    // Custom Page Indicator
                     HStack(spacing: 8) {
                         ForEach(0..<carouselItems.count, id: \.self) { index in
                             Circle()
-                                .fill(carouselPage == index 
-                                      ? (isDarkBackground ? .white : theme.primary) 
+                                .fill(carouselPage == index
+                                      ? (isDarkBackground ? .white : theme.primary)
                                       : (isDarkBackground ? .white.opacity(0.2) : theme.primary.opacity(0.2)))
                                 .frame(width: 8, height: 8)
                                 .animation(.spring(), value: carouselPage)
@@ -86,18 +78,57 @@ public struct WelcomeView: View {
                 Spacer()
 
                 // Authentication buttons
-                VStack(spacing: 16) {
-                    // Sign In button
-                    PrimaryButton(title: "Sign In") {
-                        showSignInSheet = true
+                VStack(spacing: 12) {
+                    Button(action: { signInWithApple() }) {
+                        HStack(spacing: 8) {
+                            if isAppleLoading {
+                                ProgressView()
+                                    .tint(.white)
+                            } else {
+                                Image(systemName: "apple.logo")
+                                    .font(.system(size: 18, weight: .medium))
+                            }
+                            Text("Continue with Apple")
+                                .font(type.body1Bold)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(.black)
+                        .foregroundStyle(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous))
+                    }
+                    .disabled(isAppleLoading || isGoogleLoading)
+                    .opacity((isAppleLoading || isGoogleLoading) ? 0.7 : 1.0)
+
+                    GoogleSignInButton(
+                        title: isGoogleLoading ? "Signing in..." : "Continue with Google",
+                        scheme: .light
+                    ) {
+                        signInWithGoogle()
+                    }
+                    .disabled(isAppleLoading || isGoogleLoading)
+                    .opacity((isAppleLoading || isGoogleLoading) ? 0.7 : 1.0)
+
+                    if !authError.isEmpty {
+                        Text(authError)
+                            .font(type.body2)
+                            .foregroundStyle(theme.destructive)
+                            .multilineTextAlignment(.center)
+                            .transition(.opacity)
                     }
 
-                    // Create Account button
-                    SecondaryButton(title: "Create Account") {
-                        showCreateAccountSheet = true
+                    #if DEBUG
+                    HStack(spacing: 12) {
+                        SecondaryButton(title: "Skip → Onboarding") {
+                            authViewModel.skipToOnboardingForTesting()
+                        }
+                        SecondaryButton(title: "Skip → App") {
+                            authViewModel.bypassToMainApp()
+                        }
                     }
+                    #endif
                 }
-                
+                .padding(.bottom, 8)
             }
             .padding(.top)
             .padding(.horizontal)
@@ -116,44 +147,62 @@ public struct WelcomeView: View {
             .animation(.easeInOut(duration: 0.6), value: carouselPage)
         }
         .useTypography()
-        .onAppear {
-            checkAndShowOnboarding()
-        }
-        .sheet(isPresented: $showCreateAccountSheet) {
-            AuthBottomSheet(mode: .signUp, onSuccess: {
-                showCreateAccountSheet = false
-            })
-            .useTheme()
-            .useTypography()
-            .environmentObject(authViewModel)
-        }
-        .sheet(isPresented: $showSignInSheet) {
-            AuthBottomSheet(mode: .signIn, onSuccess: {
-                showSignInSheet = false
-            })
-            .useTheme()
-            .useTypography()
-            .environmentObject(authViewModel)
-        }
-        .fullScreenCover(isPresented: $showOnboardingFlow) {
-            OnboardingCoordinatorView()
-                .useTheme()
-                .useTypography()
-                .environmentObject(authViewModel)
-        }
-        .onChange(of: authViewModel.hasCompletedOnboarding) { _, newValue in
-            if newValue {
-                showOnboardingFlow = false
+    }
+
+    // MARK: - Auth Actions
+
+    private func signInWithApple() {
+        isAppleLoading = true
+        authError = ""
+
+        Task {
+            do {
+                try await authViewModel.signInWithApple()
+                await MainActor.run {
+                    isAppleLoading = false
+                }
+            } catch let error as AppleSignInError {
+                await MainActor.run {
+                    isAppleLoading = false
+                    if case .canceled = error {
+                        authError = ""
+                    } else {
+                        authError = error.localizedDescription
+                    }
+                }
+            } catch {
+                #if DEBUG
+                print("🔴 Apple Sign In error: \(error)")
+                #endif
+                await MainActor.run {
+                    isAppleLoading = false
+                    authError = error.localizedDescription
+                }
             }
         }
     }
 
-    // MARK: - Helper Methods
+    private func signInWithGoogle() {
+        isGoogleLoading = true
+        authError = ""
 
-    private func checkAndShowOnboarding() {
-        // Stub: In boilerplate, auth is always true, onboarding always complete
-        // This is kept for structure
+        Task {
+            do {
+                try await authViewModel.signInWithGoogle()
+                await MainActor.run { isGoogleLoading = false }
+            } catch {
+                #if DEBUG
+                print("🔴 Google Sign In error: \(error)")
+                #endif
+                await MainActor.run {
+                    isGoogleLoading = false
+                    authError = error.localizedDescription
+                }
+            }
+        }
     }
+
+    // MARK: - Helpers
 
     @ViewBuilder
     private func carouselHeader(title: String, description: String, isDark: Bool) -> some View {
@@ -177,7 +226,6 @@ public struct WelcomeView: View {
         CarouselItem(title: "Track Your Growth", description: "Visualize your emotional journey and personal evolution over time."),
         CarouselItem(title: "Reflect with AI", description: "Get personalized insights and identify patterns in your thoughts.")
     ]
-    
 }
 
 private struct CarouselItem: Identifiable {

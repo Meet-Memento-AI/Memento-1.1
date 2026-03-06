@@ -46,8 +46,8 @@ public struct Chip: View {
                 .overlay(
                     RoundedRectangle(cornerRadius: 24, style: .continuous)
                         .strokeBorder(
-                            isSelected ? Color.clear : theme.border.opacity(0.3),
-                            lineWidth: 1
+                            isSelected ? Color.clear : theme.border.opacity(0.5),
+                            lineWidth: 1.5
                         )
                 )
                 .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)

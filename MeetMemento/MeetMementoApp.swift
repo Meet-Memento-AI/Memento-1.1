@@ -65,19 +65,10 @@ struct MeetMementoApp: App {
                 #endif
             }
             .onOpenURL { url in
-                // Handle OAuth callback from Google Sign In
-                Task {
-                    do {
-                        #if DEBUG
-                        print("🔴 Received OAuth callback URL: \(url)")
-                        #endif
-                        try await authViewModel.handleOAuthCallback(url: url)
-                    } catch {
-                        #if DEBUG
-                        print("🔴 OAuth callback error: \(error)")
-                        #endif
-                    }
-                }
+                #if DEBUG
+                print("🔴 Received deep link URL: \(url)")
+                #endif
+                SupabaseService.shared.client.auth.handle(url)
             }
         }
     }

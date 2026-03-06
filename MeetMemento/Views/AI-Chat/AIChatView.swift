@@ -15,13 +15,8 @@ public struct AIChatView: View {
     @Environment(\.typography) private var type
     @Environment(\.dismiss) private var dismiss
 
-    @State private var messages: [ChatMessage] = []
-    @State private var inputText: String = ""
-    @State private var isSending: Bool = false
+    @StateObject private var viewModel = ChatViewModel()
 
-    // Memory optimization: cap message history to prevent unbounded growth
-    private let maxMessagesInMemory = 100
-    @State private var reviewedJournalCount: Int = 5 // Mock data
     @State private var selectedCitations: [JournalCitation]? = nil
     @State private var showCitationsSheet = false
     @State private var showChatHistorySheet = false
@@ -85,9 +80,6 @@ public struct AIChatView: View {
             }
         }
         .toolbarBackground(.hidden, for: .navigationBar)
-        .onAppear {
-            loadInitialState()
-        }
         .onDisappear {
             scrollTask?.cancel()
             scrollTask = nil
@@ -108,6 +100,11 @@ public struct AIChatView: View {
                 }
             )
         }
+        .alert("Something went wrong", isPresented: $viewModel.showingError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(viewModel.errorMessage ?? "Please try again.")
+        }
     }
     
     // MARK: - Messages Scroll View
@@ -116,7 +113,7 @@ public struct AIChatView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 16) {
-                    if messages.isEmpty && !isSending {
+                    if viewModel.messages.isEmpty && !viewModel.isLoading {
                         VStack(alignment: .leading, spacing: 24) {
                             // Extra top padding when embedded to account for floating header
                             Spacer().frame(height: topContentInset + 20)
@@ -141,7 +138,7 @@ public struct AIChatView: View {
                                 HStack(spacing: 12) {
                                     ForEach(Self.defaultSuggestions, id: \.self) { suggestion in
                                         AISuggestionCard(suggestion: suggestion) {
-                                            sendMessage(prompt: suggestion)
+                                            viewModel.sendMessage(prompt: suggestion)
                                         }
                                     }
                                 }
@@ -153,7 +150,7 @@ public struct AIChatView: View {
                         .id("empty")
                     } else {
                         VStack(alignment: .leading, spacing: 16) {
-                            ForEach(messages) { message in
+                            ForEach(viewModel.messages) { message in
                                 ChatMessageBubble(
                                     message: message,
                                     onCitationsTapped: {
@@ -162,13 +159,13 @@ public struct AIChatView: View {
                                             showCitationsSheet = true
                                         }
                                     },
-                                    onRedo: message.isFromUser ? nil : { regenerateResponse(for: message.id) }
+                                    onRedo: message.isFromUser ? nil : { viewModel.regenerateResponse(for: message.id) }
                                 )
                                 .id(message.id)
                             }
 
                             // Loading State Indicator
-                            if isSending {
+                            if viewModel.isLoading {
                                 AILoadingState()
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .transition(.opacity)
@@ -182,10 +179,10 @@ public struct AIChatView: View {
                 .padding(.top, topContentInset)
             }
             .onAppear { scrollProxy = proxy }
-            .onChange(of: messages.count) { oldCount, newCount in
+            .onChange(of: viewModel.messages.count) { oldCount, newCount in
                 scrollToBottom(proxy: proxy, count: newCount)
             }
-            .onChange(of: isSending) { _, newValue in
+            .onChange(of: viewModel.isLoading) { _, newValue in
                 if newValue {
                      // Scroll to bottom when loading starts using Task
                      scrollTask?.cancel()
@@ -210,7 +207,7 @@ public struct AIChatView: View {
     }
     
     private func scrollToBottom(proxy: ScrollViewProxy, count: Int) {
-         if let lastMessage = messages.last {
+         if let lastMessage = viewModel.messages.last {
              withAnimation(.easeOut(duration: 0.3)) {
                  proxy.scrollTo(lastMessage.id, anchor: .bottom)
              }
@@ -223,10 +220,10 @@ public struct AIChatView: View {
 
     private var floatingInputArea: some View {
         ChatInputField(
-            text: $inputText,
-            isSending: isSending,
-            hasChatHistory: !messages.isEmpty,
-            onSend: { sendMessage() },
+            text: $viewModel.inputText,
+            isSending: viewModel.isLoading,
+            hasChatHistory: !viewModel.messages.isEmpty,
+            onSend: { viewModel.sendMessage() },
             onJournalTap: { showChatHistorySheet = true }
         )
     }
@@ -251,9 +248,9 @@ public struct AIChatView: View {
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 100_000_000)
             withAnimation(.easeOut(duration: 0.25)) {
-                if let lastMessage = messages.last {
+                if let lastMessage = viewModel.messages.last {
                     proxy.scrollTo(lastMessage.id, anchor: .bottom)
-                } else if isSending {
+                } else if viewModel.isLoading {
                     proxy.scrollTo("loading-state", anchor: .bottom)
                 }
             }
@@ -262,94 +259,6 @@ public struct AIChatView: View {
 
     // MARK: - Actions
 
-    private func regenerateResponse(for messageId: UUID) {
-        guard let index = messages.firstIndex(where: { $0.id == messageId }), index > 0 else { return }
-        let precedingUserMessage = messages[index - 1]
-        guard precedingUserMessage.isFromUser else { return }
-        let userContent = precedingUserMessage.content.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !userContent.isEmpty else { return }
-        messages.removeSubrange((index - 1)...index)
-        sendMessage(prompt: userContent)
-    }
-    
-    private func loadInitialState() {
-        // Mock initial messages for UI preview (remove when backend is ready)
-        // For now, start with empty state
-        messages = []
-        reviewedJournalCount = 5 // Mock data
-    }
-    
-    private func sendMessage(prompt: String? = nil) {
-        let text: String
-        if let prompt = prompt {
-            text = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
-        } else {
-            text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        guard !text.isEmpty, !isSending else { return }
-
-        // Add user message with memory limit enforcement
-        let userMessage = ChatMessage(
-            content: text,
-            isFromUser: true
-        )
-        addMessage(userMessage)
-
-        if prompt == nil {
-            inputText = ""
-        }
-
-        // Simulate AI response (remove when backend is ready)
-        withAnimation {
-            isSending = true
-        }
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-
-        // Simulate delay for AI response
-        Task {
-            try? await Task.sleep(nanoseconds: 2_000_000_000) // 2.0 seconds
-            
-            await MainActor.run {
-                // Mock AI response with structured content (replace with actual API call)
-                let mockCitations: [JournalCitation]? = [
-                    JournalCitation(
-                        entryId: UUID(),
-                        entryTitle: "Reflection on Balance",
-                        entryDate: Date().addingTimeInterval(-86400 * 2),
-                        excerpt: "I notice that when I take time to pause in the morning, my entire day feels more structured and less chaotic."
-                    ),
-                    JournalCitation(
-                        entryId: UUID(),
-                        entryTitle: "Work Stress",
-                        entryDate: Date().addingTimeInterval(-86400 * 5),
-                        excerpt: "Deadlines are piling up and I feel the pressure mounting. Need to find a way to disconnect."
-                    )
-                ]
-                
-                let aiResponse = ChatMessage.aiMessage(
-                    heading1: "Patterns in Your Resilience",
-                    heading2: "Key Observations",
-                    body: "I've analyzed your recent journal entries and found some interesting connections. **Mindfulness seems to be a key driver** for your productivity.\n\nWhen you mention *taking morning pauses*, your subsequent entries tend to be more positive and focused. Conversely, days without this routine often correlate with higher reported stress levels regarding deadlines.\n\nHere is a breakdown of what I found:\n1. **Morning Routine**: Highly effective for mood regulation.\n2. **Workload Management**: Needs more separation from personal time.\n\nConsider trying to maintain that morning pause even on successful days.",
-                    citations: mockCitations
-                )
-                
-                withAnimation {
-                    isSending = false
-                    addMessage(aiResponse)
-                }
-            }
-        }
-    }
-
-    /// Adds a message while enforcing memory limit to prevent unbounded growth
-    private func addMessage(_ message: ChatMessage) {
-        messages.append(message)
-        // Keep only recent messages in memory to prevent OOM
-        if messages.count > maxMessagesInMemory {
-            messages.removeFirst(messages.count - maxMessagesInMemory)
-        }
-    }
-    
     private func dismissKeyboard() {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
@@ -358,25 +267,12 @@ public struct AIChatView: View {
 
     private func loadSession(_ session: ChatSession) {
         // TODO: Load actual session messages from backend
-        // For now, show a mock loaded state using the session title (first message)
-        messages = [
-            ChatMessage(
-                content: session.title,
-                isFromUser: true
-            ),
-            ChatMessage.aiMessage(
-                heading1: "Restored Session",
-                heading2: nil,
-                body: "This is a restored conversation from your chat history. The original AI response would appear here.",
-                citations: nil
-            )
-        ]
+        viewModel.sendMessage(prompt: session.title)
     }
 
     private func startNewChat() {
         withAnimation {
-            messages = []
-            inputText = ""
+            viewModel.clearConversation()
         }
     }
 }

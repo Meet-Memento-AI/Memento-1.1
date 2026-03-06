@@ -144,15 +144,6 @@ struct YourEntriesView: View {
     private var entriesList: some View {
         ScrollView(.vertical, showsIndicators: true) {
             LazyVStack(spacing: 32, pinnedViews: []) {
-                // Welcome header
-                if !entryViewModel.userFirstName.isEmpty {
-                    Text("Welcome, \(entryViewModel.userFirstName)")
-                        .font(type.h3)
-                        .foregroundStyle(theme.foreground)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.bottom, 8)
-                }
-
                 // Show error banner if there's an error (but we have cached entries)
                 if let errorMessage = entryViewModel.errorMessage {
                     HStack(spacing: 12) {

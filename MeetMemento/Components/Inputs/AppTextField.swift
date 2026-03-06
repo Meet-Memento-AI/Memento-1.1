@@ -13,60 +13,45 @@ public struct AppTextField: View {
     var isSecure: Bool = false
     var keyboardType: UIKeyboardType = .default
     var textInputAutocapitalization: TextInputAutocapitalization = .sentences
-    var icon: String? = nil
-    
+
     @Environment(\.theme) private var theme
     @Environment(\.typography) private var type
     @FocusState private var isFocused: Bool
-    
+
+    /// Text color: Gray/700 for typing and filled states
+    private let textColor: Color = GrayScale.gray700
+
     public init(
         placeholder: String,
         text: Binding<String>,
         isSecure: Bool = false,
         keyboardType: UIKeyboardType = .default,
-        textInputAutocapitalization: TextInputAutocapitalization = .sentences,
-        icon: String? = nil
+        textInputAutocapitalization: TextInputAutocapitalization = .sentences
     ) {
         self.placeholder = placeholder
         self._text = text
         self.isSecure = isSecure
         self.keyboardType = keyboardType
         self.textInputAutocapitalization = textInputAutocapitalization
-        self.icon = icon
     }
-    
+
     public var body: some View {
-        HStack(spacing: 12) {
-            if let icon = icon {
-                Image(systemName: icon)
-                    .font(type.body1)
-                    .foregroundStyle(theme.mutedForeground)
-                    .frame(width: 20)
+        Group {
+            if isSecure {
+                SecureField(placeholder, text: $text)
+            } else {
+                TextField(placeholder, text: $text)
             }
-            
-            Group {
-                if isSecure {
-                    SecureField(placeholder, text: $text)
-                } else {
-                    TextField(placeholder, text: $text)
-                }
-            }
-            .font(type.input)
-            .foregroundStyle(theme.foreground)
-            .textInputAutocapitalization(textInputAutocapitalization)
-            .keyboardType(keyboardType)
-            .focused($isFocused)
-            .accessibilityLabel(placeholder)
-            .accessibilityHint(isSecure ? "Secure text field" : "Text field")
         }
-        .padding(.horizontal, 16)
+        .font(type.h4)
+        .foregroundStyle(textColor)
+        .textInputAutocapitalization(textInputAutocapitalization)
+        .keyboardType(keyboardType)
+        .focused($isFocused)
+        .accessibilityLabel(placeholder)
+        .accessibilityHint(isSecure ? "Secure text field" : "Text field")
+        .padding(.horizontal, 8)
         .padding(.vertical, 14)
-        .background(theme.inputBackground)
-        .clipShape(RoundedRectangle(cornerRadius: theme.radius.md, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: theme.radius.md, style: .continuous)
-                .stroke(isFocused ? theme.primary : theme.border, lineWidth: isFocused ? 2 : 1)
-        )
     }
 }
 
@@ -76,15 +61,13 @@ public struct AppTextField: View {
             placeholder: "Email",
             text: .constant(""),
             keyboardType: .emailAddress,
-            textInputAutocapitalization: .never,
-            icon: "envelope"
+            textInputAutocapitalization: .never
         )
-        
+
         AppTextField(
             placeholder: "Password",
-            text: .constant(""),
-            isSecure: true,
-            icon: "lock"
+            text: .constant("test@example.com"),
+            isSecure: true
         )
     }
     .padding()

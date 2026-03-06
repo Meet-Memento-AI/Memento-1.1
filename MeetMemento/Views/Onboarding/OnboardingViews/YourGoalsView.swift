@@ -16,6 +16,8 @@ public struct YourGoalsView: View {
     @State private var selectedGoals: Set<String> = []
 
     public var onComplete: (() -> Void)?
+    public var isFirstStep: Bool = false
+    public var onBack: (() -> Void)?
 
     private let goals = [
         "Self awareness",
@@ -28,8 +30,10 @@ public struct YourGoalsView: View {
         "Compassion"
     ]
 
-    public init(onComplete: (() -> Void)? = nil) {
+    public init(onComplete: (() -> Void)? = nil, isFirstStep: Bool = false, onBack: (() -> Void)? = nil) {
         self.onComplete = onComplete
+        self.isFirstStep = isFirstStep
+        self.onBack = onBack
     }
 
     public var body: some View {
@@ -101,17 +105,19 @@ public struct YourGoalsView: View {
 
             // Header content
             HStack(alignment: .center, spacing: 12) {
-                // Back button
-                IconButtonNav(
-                    icon: "chevron.left",
-                    iconSize: 20,
-                    buttonSize: 40,
-                    foregroundColor: theme.foreground,
-                    useDarkBackground: false,
-                    enableHaptic: true,
-                    onTap: { dismiss() }
-                )
-                .accessibilityLabel("Back")
+                // Back button (hidden on first step)
+                if !isFirstStep {
+                    IconButtonNav(
+                        icon: "chevron.left",
+                        iconSize: 20,
+                        buttonSize: 40,
+                        foregroundColor: theme.foreground,
+                        useDarkBackground: false,
+                        enableHaptic: true,
+                        onTap: { onBack?() ?? dismiss() }
+                    )
+                    .accessibilityLabel("Back")
+                }
 
                 Spacer()
 

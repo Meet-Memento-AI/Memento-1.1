@@ -119,7 +119,7 @@ public struct AIOutputComponent: View {
             if !displayedBody.isEmpty || !animate {
                 Text(LocalizedStringKey(animate ? displayedBody : content.body))
                     .font(type.body1)
-                    .foregroundStyle(theme.foreground)
+                    .foregroundStyle(GrayScale.gray800)
                     .lineSpacing(type.bodyLineSpacing)
             }
 

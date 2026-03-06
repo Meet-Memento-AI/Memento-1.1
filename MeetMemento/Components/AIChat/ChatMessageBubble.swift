@@ -35,7 +35,7 @@ public struct ChatMessageBubble: View {
                     messageContent
                         .padding(.horizontal, 16)
                         .padding(.vertical, 16)
-                        .background(theme.primary)
+                        .background(GrayScale.gray100)
                         .clipShape(RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous))
                 }
             }
@@ -52,8 +52,8 @@ public struct ChatMessageBubble: View {
         if message.isFromUser {
             // User messages: plain text
             Text(message.content)
-                .font(type.body1)
-                .foregroundStyle(BaseColors.white)
+                .font(type.body1.weight(.medium))
+                .foregroundStyle(GrayScale.gray800)
                 .lineSpacing(type.bodyLineSpacing)
         } else if let aiContent = message.aiOutputContent {
             // AI messages with structured content (headings, body, citations)

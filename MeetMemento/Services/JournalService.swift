@@ -36,6 +36,18 @@ class JournalService {
         guard let createdDTO = response.first, let created = createdDTO.toDomain() else {
             throw NSError(domain: "JournalService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to parse created entry"])
         }
+
+        // Trigger embedding generation (fire-and-forget)
+        Task {
+            do {
+                try await ChatService.shared.triggerEmbedding(entryId: created.id)
+            } catch {
+                #if DEBUG
+                print("⚠️ [JournalService] Failed to trigger embedding: \(error)")
+                #endif
+            }
+        }
+
         return created
     }
 
@@ -47,6 +59,17 @@ class JournalService {
             .update(dto)
             .eq("id", value: entry.id)
             .execute()
+
+        // Trigger embedding regeneration (fire-and-forget)
+        Task {
+            do {
+                try await ChatService.shared.triggerEmbedding(entryId: entry.id)
+            } catch {
+                #if DEBUG
+                print("⚠️ [JournalService] Failed to trigger embedding: \(error)")
+                #endif
+            }
+        }
     }
 
     struct SoftDeleteUpdate: Encodable {

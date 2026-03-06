@@ -14,11 +14,8 @@ public struct OTPVerificationView: View {
     @Environment(\.typography) private var type
     @EnvironmentObject var authViewModel: AuthViewModel
 
-    // Required parameters
     let email: String
-    let isSignUp: Bool // true for create account, false for sign in
 
-    // State variables
     @State private var otpCode: String = ""
     @State private var isVerifying: Bool = false
     @State private var showThinkingLoader: Bool = false
@@ -26,9 +23,8 @@ public struct OTPVerificationView: View {
     @State private var resendMessage: String = ""
     @FocusState private var isCodeFieldFocused: Bool
 
-    public init(email: String, isSignUp: Bool = true) {
+    public init(email: String) {
         self.email = email
-        self.isSignUp = isSignUp
     }
     
     public var body: some View {
@@ -40,7 +36,7 @@ public struct OTPVerificationView: View {
 
                     // Header
                     VStack(alignment: .leading, spacing: 12) {
-                        Text(isSignUp ? "Create your account" : "Welcome back")
+                        Text("Verify your email")
                             .font(type.h2)
                             .headerGradient()
 
@@ -186,7 +182,7 @@ public struct OTPVerificationView: View {
 
         Task {
             do {
-                try await authViewModel.verifyOTP(code: otpCode, isSignUp: isSignUp)
+                try await authViewModel.verifyOTP(code: otpCode)
 
                 await MainActor.run {
                     isVerifying = false
@@ -240,9 +236,9 @@ public struct OTPVerificationView: View {
     }
 }
 
-#Preview("Light - Sign Up") {
+#Preview("Light") {
     NavigationStack {
-        OTPVerificationView(email: "user@example.com", isSignUp: true)
+        OTPVerificationView(email: "user@example.com")
             .useTheme()
             .useTypography()
             .environmentObject(AuthViewModel())
@@ -250,9 +246,9 @@ public struct OTPVerificationView: View {
     .preferredColorScheme(.light)
 }
 
-#Preview("Dark - Sign In") {
+#Preview("Dark") {
     NavigationStack {
-        OTPVerificationView(email: "user@example.com", isSignUp: false)
+        OTPVerificationView(email: "user@example.com")
             .useTheme()
             .useTypography()
             .environmentObject(AuthViewModel())

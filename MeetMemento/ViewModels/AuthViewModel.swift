@@ -36,35 +36,26 @@ class AuthViewModel: ObservableObject {
         SupabaseService.shared.client
     }
 
-    /// Checks if a session restoration is possible on app launch
+    /// Restores session on app launch and checks onboarding status from DB.
     func initializeAuth() async {
         do {
             let session = try await client.auth.session
-            // If we have a session, we are authenticated
-            self.isAuthenticated = true
-            
-            // TODO: check real onboarding status from DB (public.users)
-            // For now, assume if we have a session, we need to check onboarding
-            // This is a simplification; you likely want to fetch the user profile here.
-            self.hasCompletedOnboarding = true 
-            self.authState = .authenticated(needsOnboarding: false)
-            
-            print("✅ Supabase Session Restored: \(session.user.id)")
-            
-            // Ensure public.users record exists to satisfy FK constraints for restored sessions
-            Task {
-                do {
-                    // Need email from session.user.email
-                    if let email = session.user.email {
-                        try await UserService.shared.ensureUserExists(id: session.user.id, email: email)
-                    }
-                } catch {
-                    print("⚠️ Failed to ensure user profile exists on restore: \(error)")
-                }
+
+            if let email = session.user.email {
+                try? await UserService.shared.ensureUserExists(id: session.user.id, email: email)
             }
+
+            let hasOnboarded = try await UserService.shared.hasCompletedOnboarding(userId: session.user.id)
+
+            self.isAuthenticated = true
+            self.hasCompletedOnboarding = hasOnboarded
+            self.authState = .authenticated(needsOnboarding: !hasOnboarded)
+
+            print("✅ Supabase Session Restored: \(session.user.id), onboarded: \(hasOnboarded)")
         } catch {
             print("ℹ️ No active Supabase session found.")
             self.isAuthenticated = false
+            self.hasCompletedOnboarding = false
             self.authState = .unauthenticated
         }
     }
@@ -82,55 +73,36 @@ class AuthViewModel: ObservableObject {
         print("✅ OTP sent to \(email)")
     }
 
-    /// Verifies the OTP code entered by the user.
-    /// - Parameter isSignUp: If true (Create Account), onboarding is required; if false (Sign In), user is treated as onboarded.
-    func verifyOTP(email: String, code: String, isSignUp: Bool = false) async throws {
+    /// Verifies the OTP code and dynamically checks DB for onboarding status.
+    func verifyOTP(email: String, code: String) async throws {
         let session = try await client.auth.verifyOTP(
             email: email,
             token: code,
             type: .email
         )
 
-        // Ensure public.users record exists to satisfy FK constraints
         do {
             try await UserService.shared.ensureUserExists(id: session.user.id, email: email)
         } catch {
             print("⚠️ Failed to ensure user profile exists: \(error)")
-            // We don't block login, but subsequent writes might fail.
         }
+
+        let hasOnboarded = try await UserService.shared.hasCompletedOnboarding(userId: session.user.id)
+
+        try? await Task.sleep(nanoseconds: 300_000_000)
 
         self.isAuthenticated = true
-        if isSignUp {
-            self.hasCompletedOnboarding = false
-            self.authState = .authenticated(needsOnboarding: true)
-        } else {
-            self.hasCompletedOnboarding = true
-            self.authState = .authenticated(needsOnboarding: false)
-        }
+        self.hasCompletedOnboarding = hasOnboarded
+        self.authState = .authenticated(needsOnboarding: !hasOnboarded)
     }
-    
-    // BACKWARDS_COMPATIBILITY: The view might only pass 'code' if email is stored elsewhere.
-    // If your View only passes code, we need to ensure email is accessible.
-    // For this refactor, I'll update the signature to require email, 
-    // BUT if the UI assumes verifyOTP(code:), I need to handle that.
-    // Looking at `OTPVerificationView`, it likely has access to email.
-    // I will include the ORIGINAL signature for compatibility if needed, but usage suggests email is needed.
-    // I'll stick to the original signature if I can find where email is stored.
-    // Since I can't see the View state right now easily without more reads, 
-    // I will add a `currentEmail` property to store it during the flow.
-    
+
     var currentEmail: String?
 
-    func sendOTPWrapper(email: String) async throws {
-        self.currentEmail = email
-        try await sendOTP(email: email)
-    }
-
-    func verifyOTP(code: String, isSignUp: Bool = false) async throws {
+    func verifyOTP(code: String) async throws {
         guard let email = currentEmail else {
             throw AuthError.missingEmail
         }
-        try await verifyOTP(email: email, code: code, isSignUp: isSignUp)
+        try await verifyOTP(email: email, code: code)
     }
 
     func signOut() async {
@@ -164,28 +136,19 @@ class AuthViewModel: ObservableObject {
     }
 
     func updateProfile(firstName: String, lastName: String) async throws {
-        // Update User Metadata in Supabase Auth
-        // or Update `public.users` table
-
-        // 1. Update Auth Metadata (easiest for display name)
         let attributes = UserAttributes(data: [
             "full_name": .string("\(firstName) \(lastName)")
         ])
         _ = try await client.auth.update(user: attributes)
-
-        // 2. Ideally update public.users table too via RPC or direct update if policy allows
-        // This requires a `UserService` or direct DB call.
-        // For now, the metadata update is a good first step.
+        try await UserService.shared.updateFullName(firstName: firstName, lastName: lastName)
     }
 
     // MARK: - Apple Sign In
 
     /// Signs in with Apple using native AuthenticationServices
     func signInWithApple() async throws {
-        // 1. Get Apple credential via native Sign In
         let appleResult = try await AppleSignInService.shared.signIn()
 
-        // 2. Sign in to Supabase with the Apple ID token
         let session = try await client.auth.signInWithIdToken(
             credentials: .init(
                 provider: .apple,
@@ -194,7 +157,6 @@ class AuthViewModel: ObservableObject {
             )
         )
 
-        // 3. Create/update user profile with OAuth data
         let email = appleResult.email ?? session.user.email ?? ""
         try await UserService.shared.ensureUserExistsWithProfile(
             id: session.user.id,
@@ -202,14 +164,17 @@ class AuthViewModel: ObservableObject {
             fullName: appleResult.fullName
         )
 
-        // 4. Check onboarding status from database
+        // Preserve Apple-provided name for YourNameView pre-fill (Apple only sends it once)
+        if let fullName = appleResult.fullName, !fullName.isEmpty {
+            let parts = fullName.split(separator: " ", maxSplits: 1)
+            pendingFirstName = String(parts.first ?? "")
+            pendingLastName = parts.count > 1 ? String(parts.last ?? "") : nil
+        }
+
         let hasOnboarded = try await UserService.shared.hasCompletedOnboarding(userId: session.user.id)
 
-        // 5. Brief delay to allow Supabase session to fully stabilize
-        // This prevents "cancelled" errors when the UI immediately loads data
-        try? await Task.sleep(nanoseconds: 300_000_000) // 0.3 seconds
+        try? await Task.sleep(nanoseconds: 300_000_000)
 
-        // 6. Update auth state
         self.isAuthenticated = true
         self.hasCompletedOnboarding = hasOnboarded
         self.authState = .authenticated(needsOnboarding: !hasOnboarded)
@@ -219,27 +184,14 @@ class AuthViewModel: ObservableObject {
 
     // MARK: - Google Sign In
 
-    /// Initiates Google Sign In via OAuth redirect flow
-    /// Returns the URL to open in Safari for authentication
-    func signInWithGoogle() async throws -> URL {
-        // Use OAuth redirect flow - no SDK needed
-        let redirectURL = URL(string: "memento://auth/callback")!
+    /// Signs in with Google using the SDK's built-in ASWebAuthenticationSession flow
+    func signInWithGoogle() async throws {
+        let session = try await client.auth.signInWithOAuth(
+            provider: .google
+        ) { (session: ASWebAuthenticationSession) in
+            session.prefersEphemeralWebBrowserSession = false
+        }
 
-        let url = try client.auth.getOAuthSignInURL(
-            provider: .google,
-            redirectTo: redirectURL
-        )
-
-        print("✅ Google OAuth URL generated")
-        return url
-    }
-
-    /// Handles OAuth callback URL (called from MeetMementoApp.onOpenURL)
-    func handleOAuthCallback(url: URL) async throws {
-        // Parse session from callback URL
-        let session = try await client.auth.session(from: url)
-
-        // Create/update user profile
         let email = session.user.email ?? ""
         let fullName = session.user.userMetadata["full_name"]?.stringValue
 
@@ -249,18 +201,15 @@ class AuthViewModel: ObservableObject {
             fullName: fullName
         )
 
-        // Check onboarding status
         let hasOnboarded = try await UserService.shared.hasCompletedOnboarding(userId: session.user.id)
 
-        // Brief delay to allow Supabase session to fully stabilize
-        try? await Task.sleep(nanoseconds: 300_000_000) // 0.3 seconds
+        try? await Task.sleep(nanoseconds: 300_000_000)
 
-        // Update auth state
         self.isAuthenticated = true
         self.hasCompletedOnboarding = hasOnboarded
         self.authState = .authenticated(needsOnboarding: !hasOnboarded)
 
-        print("✅ OAuth callback handled for user: \(session.user.id)")
+        print("✅ Google Sign In successful for user: \(session.user.id)")
     }
 
     /// Deletes the user's account and all associated data
@@ -289,6 +238,7 @@ class AuthViewModel: ObservableObject {
         // 4. Clear local data
         UserDefaults.standard.removeObject(forKey: "memento_first_name")
         UserDefaults.standard.removeObject(forKey: "memento_last_name")
+        SecurityService.shared.clearAll()
 
         // 5. Update state
         await MainActor.run {

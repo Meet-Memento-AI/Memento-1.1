@@ -113,7 +113,11 @@ class UserService {
 
     /// Checks if user has completed onboarding
     func hasCompletedOnboarding(userId: UUID) async throws -> Bool {
-        let result: [UserProfileDTO] = try await client
+        struct OnboardingStatus: Codable {
+            let onboarding_completed: Bool
+        }
+
+        let result: [OnboardingStatus] = try await client
             .from("users")
             .select("onboarding_completed")
             .eq("id", value: userId)
@@ -121,6 +125,83 @@ class UserService {
             .value
 
         return result.first?.onboarding_completed ?? false
+    }
+
+    // MARK: - Onboarding Persistence
+
+    /// Updates the user's full name in the `users` table.
+    func updateFullName(firstName: String, lastName: String) async throws {
+        guard let userId = client.auth.currentUser?.id else { return }
+        let fullName = "\(firstName) \(lastName)".trimmingCharacters(in: .whitespaces)
+        try await client
+            .from("users")
+            .update(["full_name": fullName, "updated_at": iso8601Now()])
+            .eq("id", value: userId)
+            .execute()
+    }
+
+    /// Updates the user's goals and selected topics.
+    func updateGoals(_ goals: [String]) async throws {
+        guard let userId = client.auth.currentUser?.id else { return }
+        let payload: [String: AnyJSON] = [
+            "goals": .string(goals.joined(separator: ", ")),
+            "selected_topics": .array(goals.map { .string($0) }),
+            "updated_at": .string(iso8601Now())
+        ]
+        try await client
+            .from("users")
+            .update(payload)
+            .eq("id", value: userId)
+            .execute()
+    }
+
+    /// Marks onboarding as complete.
+    func markOnboardingComplete() async throws {
+        guard let userId = client.auth.currentUser?.id else { return }
+        let payload: [String: AnyJSON] = [
+            "onboarding_completed": .bool(true),
+            "onboarding_completed_at": .string(iso8601Now()),
+            "updated_at": .string(iso8601Now())
+        ]
+        try await client
+            .from("users")
+            .update(payload)
+            .eq("id", value: userId)
+            .execute()
+    }
+
+    /// Saves the personalization text to `user_profiles`.
+    func savePersonalizationText(_ text: String) async throws {
+        guard let userId = client.auth.currentUser?.id else { return }
+
+        // Upsert into user_profiles
+        let payload: [String: AnyJSON] = [
+            "user_id": .string(userId.uuidString),
+            "onboarding_self_reflection": .string(text),
+            "updated_at": .string(iso8601Now())
+        ]
+        try await client
+            .from("user_profiles")
+            .upsert(payload)
+            .execute()
+    }
+
+    /// Fetches the personalization text from `user_profiles` for the current user.
+    func getPersonalizationText() async throws -> String? {
+        guard let userId = client.auth.currentUser?.id else { return nil }
+        let result: [[String: String?]] = try await client
+            .from("user_profiles")
+            .select("onboarding_self_reflection")
+            .eq("user_id", value: userId)
+            .execute()
+            .value
+        return result.first?["onboarding_self_reflection"] ?? nil
+    }
+
+    // MARK: - Helpers
+
+    private func iso8601Now() -> String {
+        ISO8601DateFormatter().string(from: Date())
     }
 }
 
