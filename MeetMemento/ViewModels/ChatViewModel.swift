@@ -9,8 +9,60 @@ class ChatViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var showingError: Bool = false
 
+    // Session management
+    @Published var currentSessionId: UUID?
+    @Published var sessions: [ChatSession] = []
+    @Published var isLoadingSessions: Bool = false
+
     private let chatService = ChatService.shared
     private let maxMessagesInMemory = 100
+
+    // MARK: - JSON Content Extraction
+
+    /// Extracts clean body text from potentially JSON-formatted content
+    /// Handles: raw JSON strings, legacy plain text, nested JSON
+    private func extractBodyContent(from content: String, role: String) -> (body: String, aiContent: AIOutputContent?) {
+        guard role == "assistant" else {
+            return (content, nil)
+        }
+
+        // Try parsing as AIOutputContent JSON
+        if let data = content.data(using: .utf8),
+           let parsed = try? JSONDecoder().decode(AIOutputContent.self, from: data) {
+            return (parsed.body, parsed)
+        }
+
+        // Try parsing as generic JSON with body field
+        if let data = content.data(using: .utf8),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let body = json["body"] as? String {
+            let heading1 = json["heading1"] as? String
+            let heading2 = json["heading2"] as? String
+            let aiContent = AIOutputContent(heading1: heading1, heading2: heading2, body: body)
+            return (body, aiContent)
+        }
+
+        // Check if content looks like JSON but parsing failed - try to extract body
+        if content.hasPrefix("{") && content.contains("\"body\"") {
+            // Regex fallback to extract body value
+            if let range = content.range(of: #""body"\s*:\s*"([^"\\]*(\\.[^"\\]*)*)""#, options: .regularExpression),
+               let bodyRange = content.range(of: #":\s*"([^"\\]*(\\.[^"\\]*)*)""#, options: .regularExpression, range: range) {
+                let extracted = String(content[bodyRange])
+                    .replacingOccurrences(of: #"^\s*:\s*""#, with: "", options: .regularExpression)
+                    .replacingOccurrences(of: #""$"#, with: "", options: .regularExpression)
+                    .replacingOccurrences(of: "\\\"", with: "\"")
+                    .replacingOccurrences(of: "\\n", with: "\n")
+                if !extracted.isEmpty {
+                    let aiContent = AIOutputContent(heading1: nil, heading2: nil, body: extracted)
+                    return (extracted, aiContent)
+                }
+            }
+        }
+
+        // Not JSON - return as-is (legacy plain text)
+        let aiContent = AIOutputContent(heading1: nil, heading2: nil, body: content)
+        return (content, aiContent)
+    }
 
     // MARK: - Send Message
 
@@ -34,10 +86,21 @@ class ChatViewModel: ObservableObject {
 
         Task {
             do {
-                let response = try await chatService.sendMessage(text)
+                let response = try await chatService.sendMessage(text, sessionId: currentSessionId)
+
+                // Update current session ID from response (handles new session creation)
+                if let newSessionId = UUID(uuidString: response.sessionId) {
+                    if currentSessionId == nil {
+                        currentSessionId = newSessionId
+                        // Refresh sessions list when a new session is created
+                        await fetchSessions()
+                    }
+                }
 
                 let citations = mapSourcesToCitations(response.sources)
                 let aiMessage = ChatMessage.aiMessage(
+                    heading1: response.heading1,
+                    heading2: response.heading2,
                     body: response.reply,
                     citations: citations.isEmpty ? nil : citations
                 )
@@ -57,8 +120,81 @@ class ChatViewModel: ObservableObject {
 
     func clearConversation() {
         messages = []
-        Task {
-            try? await chatService.clearHistory()
+        currentSessionId = nil
+    }
+
+    // MARK: - Session Management
+
+    /// Fetches all chat sessions from the backend
+    func fetchSessions() async {
+        isLoadingSessions = true
+        do {
+            sessions = try await chatService.fetchSessions()
+        } catch {
+            #if DEBUG
+            print("❌ [ChatViewModel] fetchSessions error: \(error)")
+            #endif
+        }
+        isLoadingSessions = false
+    }
+
+    /// Loads a specific session's messages
+    func loadSession(_ session: ChatSession) async {
+        currentSessionId = session.id
+        messages = []
+        isLoading = true
+
+        do {
+            let messageDTOs = try await chatService.loadSessionMessages(sessionId: session.id)
+            let loadedMessages = messageDTOs.map { dto -> ChatMessage in
+                let (body, aiContent) = extractBodyContent(from: dto.content, role: dto.role)
+
+                if dto.role == "assistant", let aiContent = aiContent {
+                    return ChatMessage.aiMessage(
+                        heading1: aiContent.heading1,
+                        heading2: aiContent.heading2,
+                        body: body,
+                        citations: nil // Citations are not persisted
+                    )
+                }
+
+                // User messages
+                return ChatMessage(content: dto.content, isFromUser: dto.role == "user")
+            }
+            messages = loadedMessages
+        } catch {
+            #if DEBUG
+            print("❌ [ChatViewModel] loadSession error: \(error)")
+            #endif
+            errorMessage = "Failed to load conversation history."
+            showingError = true
+        }
+        isLoading = false
+    }
+
+    /// Starts a new chat by clearing state
+    func startNewChat() {
+        messages = []
+        currentSessionId = nil
+        inputText = ""
+    }
+
+    /// Deletes a session and refreshes the sessions list
+    func deleteSession(_ session: ChatSession) async {
+        do {
+            try await chatService.deleteSession(sessionId: session.id)
+            // Remove from local list immediately for responsiveness
+            sessions.removeAll { $0.id == session.id }
+            // If the deleted session was the current one, clear the chat
+            if currentSessionId == session.id {
+                startNewChat()
+            }
+        } catch {
+            #if DEBUG
+            print("❌ [ChatViewModel] deleteSession error: \(error)")
+            #endif
+            errorMessage = "Failed to delete conversation."
+            showingError = true
         }
     }
 

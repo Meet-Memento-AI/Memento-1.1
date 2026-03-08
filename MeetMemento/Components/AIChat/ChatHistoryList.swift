@@ -10,32 +10,45 @@ import SwiftUI
 public struct ChatHistoryList: View {
     let sessions: [ChatSession]
     let onSessionSelect: (ChatSession) -> Void
+    let onDelete: ((ChatSession) -> Void)?
 
     @Environment(\.theme) private var theme
 
     public init(
         sessions: [ChatSession],
-        onSessionSelect: @escaping (ChatSession) -> Void
+        onSessionSelect: @escaping (ChatSession) -> Void,
+        onDelete: ((ChatSession) -> Void)? = nil
     ) {
         self.sessions = sessions
         self.onSessionSelect = onSessionSelect
+        self.onDelete = onDelete
     }
 
     public var body: some View {
         if sessions.isEmpty {
             emptyState
         } else {
-            ScrollView {
-                LazyVStack(spacing: 12) {
-                    ForEach(sessions) { session in
-                        ChatHistoryItem(session: session) {
-                            onSessionSelect(session)
+            List {
+                ForEach(sessions) { session in
+                    ChatHistoryItem(session: session) {
+                        onSessionSelect(session)
+                    }
+                    .listRowInsets(EdgeInsets(top: 6, leading: 24, bottom: 6, trailing: 24))
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        if onDelete != nil {
+                            Button(role: .destructive) {
+                                onDelete?(session)
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
                         }
                     }
                 }
-                .padding(.horizontal, 24)
-                .padding(.bottom, 24)
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
         }
     }
 

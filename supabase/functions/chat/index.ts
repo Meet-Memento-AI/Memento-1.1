@@ -39,11 +39,45 @@ Never invent or assume journal content that wasn't provided to you in the contex
 
 Keep responses to 2-3 paragraphs. Write in natural, flowing paragraphs. End with one follow-up question to encourage deeper reflection.
 
-If the user seems distressed, be supportive and suggest they talk to someone they trust.`;
+If the user seems distressed, be supportive and suggest they talk to someone they trust.
+
+## Response Format
+Return a JSON object:
+{
+  "heading1": "Primary heading (or null)",
+  "heading2": "Sub-heading (or null)",
+  "body": "Your main response"
+}
+
+### When to use headings:
+- USE heading1 for multi-part questions, summaries, pattern analysis
+- USE heading2 for sub-sections within structured responses
+- DO NOT use headings for simple conversational responses
+- Most responses will only have a body
+
+Examples needing headings:
+- "What patterns do you see?" -> heading1: "Patterns in Your Entries"
+- "How have I been doing?" -> heading1: "Reflecting on Your Week"
+
+Examples NOT needing headings:
+- "Hi!" -> just body
+- "Thanks!" -> just body
+- "What did I write yesterday?" -> just body`;
 
 const MATCH_COUNT = 5;
 const MATCH_THRESHOLD = 0.3;
-const HISTORY_LIMIT = 10;
+const HISTORY_LIMIT = 6;  // 3 conversation turns is sufficient with RAG context
+
+// JSON schema for structured responses
+const RESPONSE_SCHEMA = {
+  type: "object",
+  properties: {
+    heading1: { type: "string", nullable: true },
+    heading2: { type: "string", nullable: true },
+    body: { type: "string" }
+  },
+  required: ["body"]
+};
 
 // ============================================================
 // TYPES
@@ -51,6 +85,7 @@ const HISTORY_LIMIT = 10;
 
 interface ChatRequest {
   message: string;
+  sessionId?: string;
 }
 
 interface GeminiEmbeddingResponse {
@@ -73,6 +108,12 @@ interface ChatSource {
   id: string;
   created_at: string;
   preview: string;
+}
+
+interface StructuredReply {
+  heading1: string | null;
+  heading2: string | null;
+  body: string;
 }
 
 // ============================================================
@@ -129,7 +170,46 @@ serve(async (req) => {
     console.log(`💬 Chat request from user ${user.id.substring(0, 8)}...`);
 
     // ============================================================
-    // 3. EMBED THE USER'S QUESTION
+    // 3. SESSION HANDLING
+    // ============================================================
+
+    let sessionId: string;
+    let isNewSession = false;
+
+    if (body.sessionId) {
+      // Validate session belongs to user
+      const { data: existingSession, error: sessionError } = await supabase
+        .from('chat_sessions')
+        .select('id')
+        .eq('id', body.sessionId)
+        .eq('user_id', user.id)
+        .single();
+
+      if (sessionError || !existingSession) {
+        console.error('Session validation error:', sessionError);
+        return jsonResponse({ error: 'Invalid session', code: 'INVALID_SESSION' }, 400);
+      }
+      sessionId = existingSession.id;
+    } else {
+      // Create new session with first message as title (truncated)
+      const sessionTitle = userMessage.substring(0, 100);
+      const { data: newSession, error: createError } = await supabase
+        .from('chat_sessions')
+        .insert({ user_id: user.id, title: sessionTitle })
+        .select('id')
+        .single();
+
+      if (createError || !newSession) {
+        console.error('Session creation error:', createError);
+        return jsonResponse({ error: 'Failed to create session', code: 'SESSION_ERROR' }, 500);
+      }
+      sessionId = newSession.id;
+      isNewSession = true;
+      console.log(`📝 Created new session: ${sessionId.substring(0, 8)}...`);
+    }
+
+    // ============================================================
+    // 5. EMBED THE USER'S QUESTION (skip for very short messages)
     // ============================================================
 
     const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
@@ -137,49 +217,54 @@ serve(async (req) => {
       throw new Error('GEMINI_API_KEY not configured');
     }
 
-    const queryEmbedding = await generateEmbedding(userMessage, geminiApiKey);
+    let entries: MatchedEntry[] = [];
 
-    // ============================================================
-    // 4. PGVECTOR SIMILARITY SEARCH
-    // ============================================================
+    // Only embed and search for messages with enough content for meaningful RAG
+    if (userMessage.length >= 15) {
+      const queryEmbedding = await generateEmbedding(userMessage, geminiApiKey);
 
-    const vectorLiteral = `[${queryEmbedding.join(',')}]`;
+      // PGVECTOR SIMILARITY SEARCH
+      const vectorLiteral = `[${queryEmbedding.join(',')}]`;
 
-    const { data: matchedEntries, error: rpcError } = await supabase.rpc('match_journal_entries', {
-      query_embedding: vectorLiteral,
-      match_user_id: user.id,
-      match_count: MATCH_COUNT,
-      match_threshold: MATCH_THRESHOLD,
-    });
+      const { data: matchedEntries, error: rpcError } = await supabase.rpc('match_journal_entries', {
+        query_embedding: vectorLiteral,
+        match_user_id: user.id,
+        match_count: MATCH_COUNT,
+        match_threshold: MATCH_THRESHOLD,
+      });
 
-    if (rpcError) {
-      console.error('RPC error:', rpcError);
+      if (rpcError) {
+        console.error('RPC error:', rpcError);
+      }
+
+      entries = matchedEntries ?? [];
+      console.log(`📚 Found ${entries.length} matching journal entries`);
+    } else {
+      console.log(`📝 Short message (${userMessage.length} chars) - skipping RAG`);
     }
 
-    const entries: MatchedEntry[] = matchedEntries ?? [];
-    console.log(`📚 Found ${entries.length} matching journal entries`);
-
     // ============================================================
-    // 5. LOAD CONVERSATION HISTORY
+    // 7. LOAD CONVERSATION HISTORY (filtered by session)
     // ============================================================
 
     const { data: historyRows } = await supabase
       .from('chat_messages')
       .select('role, content')
       .eq('user_id', user.id)
+      .eq('session_id', sessionId)
       .order('created_at', { ascending: true })
       .limit(HISTORY_LIMIT);
 
     const history: ChatMessageRow[] = historyRows ?? [];
 
     // ============================================================
-    // 6. BUILD CONTEXT BLOCK
+    // 8. BUILD CONTEXT BLOCK
     // ============================================================
 
     const contextBlock = buildContextBlock(entries);
 
     // ============================================================
-    // 7. ASSEMBLE & CALL GEMINI 2.5 FLASH
+    // 9. ASSEMBLE & CALL GEMINI 2.5 FLASH
     // ============================================================
 
     const geminiContents = buildGeminiContents(history, contextBlock, userMessage);
@@ -193,30 +278,95 @@ serve(async (req) => {
         generationConfig: {
           temperature: 0.7,
           maxOutputTokens: 800,
+          responseMimeType: "application/json",
+          responseSchema: RESPONSE_SCHEMA,
         },
       }),
     });
 
-    let replyText: string;
+    let structuredReply: StructuredReply;
 
     if (!geminiResponse.ok) {
       const errText = await geminiResponse.text();
       console.error(`Gemini API error ${geminiResponse.status}: ${errText}`);
-      replyText = "I'm having trouble connecting right now. Please try again in a moment.";
+      structuredReply = {
+        heading1: null,
+        heading2: null,
+        body: "I'm having trouble connecting right now. Please try again in a moment."
+      };
     } else {
       const geminiData = await geminiResponse.json();
-      replyText =
+      const rawText =
         geminiData?.candidates?.[0]?.content?.parts?.[0]?.text ??
         "I'm having trouble connecting right now. Please try again in a moment.";
+
+      // Parse JSON response with fallback
+      try {
+        const parsed = JSON.parse(rawText);
+        // Ensure body exists and is a non-empty string
+        if (typeof parsed.body === 'string' && parsed.body.trim()) {
+          let bodyText = parsed.body;
+
+          // Guard against nested JSON in body
+          if (bodyText.startsWith('{') && bodyText.includes('"body"')) {
+            try {
+              const nested = JSON.parse(bodyText);
+              if (nested.body) {
+                bodyText = nested.body;
+              }
+            } catch {
+              // Not nested JSON, use as-is
+            }
+          }
+
+          structuredReply = {
+            heading1: parsed.heading1 || null,
+            heading2: parsed.heading2 || null,
+            body: bodyText
+          };
+        } else {
+          // JSON parsed but body is missing/empty - use fallback message
+          console.warn('Gemini response missing body field, using fallback');
+          structuredReply = {
+            heading1: null,
+            heading2: null,
+            body: "I had trouble formulating a response. Please try again."
+          };
+        }
+      } catch {
+        // JSON parsing failed - check if rawText contains JSON-like structure
+        if (rawText.includes('"body"')) {
+          // Try to extract body with regex as last resort
+          const bodyMatch = rawText.match(/"body"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+          if (bodyMatch) {
+            structuredReply = {
+              heading1: null,
+              heading2: null,
+              body: bodyMatch[1].replace(/\\"/g, '"').replace(/\\n/g, '\n')
+            };
+          } else {
+            structuredReply = { heading1: null, heading2: null, body: rawText };
+          }
+        } else {
+          structuredReply = { heading1: null, heading2: null, body: rawText };
+        }
+      }
     }
 
     // ============================================================
-    // 8. PERSIST MESSAGES
+    // 10. PERSIST MESSAGES
     // ============================================================
 
+    // Store full JSON structure for assistant messages to preserve headings when loading history
+    const assistantContent = JSON.stringify({
+      heading1: structuredReply.heading1,
+      heading2: structuredReply.heading2,
+      body: structuredReply.body
+    });
+
     const { error: insertError } = await supabase.from('chat_messages').insert([
-      { user_id: user.id, role: 'user', content: userMessage },
-      { user_id: user.id, role: 'assistant', content: replyText },
+      { user_id: user.id, role: 'user', content: userMessage, session_id: sessionId },
+      { user_id: user.id, role: 'assistant', content: assistantContent, session_id: sessionId },
     ]);
 
     if (insertError) {
@@ -224,7 +374,7 @@ serve(async (req) => {
     }
 
     // ============================================================
-    // 9. RETURN RESPONSE
+    // 11. RETURN RESPONSE
     // ============================================================
 
     const sources: ChatSource[] = entries.map((e) => ({
@@ -233,7 +383,13 @@ serve(async (req) => {
       preview: e.content.substring(0, 100),
     }));
 
-    return jsonResponse({ reply: replyText, sources }, 200);
+    return jsonResponse({
+      reply: structuredReply.body,
+      heading1: structuredReply.heading1,
+      heading2: structuredReply.heading2,
+      sources,
+      sessionId
+    }, 200);
 
   } catch (error) {
     console.error('❌ Chat function error:', error);
@@ -308,9 +464,23 @@ function buildGeminiContents(
   const contents: Array<{ role: string; parts: Array<{ text: string }> }> = [];
 
   for (const msg of history) {
+    let content = msg.content;
+
+    // For assistant messages, extract just the body to save tokens
+    if (msg.role === 'assistant') {
+      try {
+        const parsed = JSON.parse(msg.content);
+        if (parsed.body) {
+          content = parsed.body;
+        }
+      } catch {
+        // Not JSON (legacy message), use as-is
+      }
+    }
+
     contents.push({
       role: msg.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: msg.content }],
+      parts: [{ text: content }],
     });
   }
 

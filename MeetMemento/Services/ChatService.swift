@@ -5,7 +5,10 @@ import Supabase
 
 struct ChatResponse: Codable {
     let reply: String
+    let heading1: String?
+    let heading2: String?
     let sources: [ChatSource]
+    let sessionId: String
 }
 
 struct ChatSource: Codable, Equatable {
@@ -24,6 +27,7 @@ struct ChatSource: Codable, Equatable {
 
 private struct ChatRequestBody: Codable {
     let message: String
+    let sessionId: String?
 }
 
 // MARK: - Service
@@ -35,11 +39,11 @@ class ChatService {
         SupabaseService.shared.client
     }
 
-    func sendMessage(_ text: String) async throws -> ChatResponse {
-        let requestBody = ChatRequestBody(message: text)
+    func sendMessage(_ text: String, sessionId: UUID? = nil) async throws -> ChatResponse {
+        let requestBody = ChatRequestBody(message: text, sessionId: sessionId?.uuidString)
 
         #if DEBUG
-        print("💬 [ChatService] Sending message to chat Edge Function...")
+        print("💬 [ChatService] Sending message to chat Edge Function (session: \(sessionId?.uuidString.prefix(8) ?? "new"))...")
         #endif
 
         let response: ChatResponse = try await client.functions.invoke(
@@ -48,7 +52,7 @@ class ChatService {
         )
 
         #if DEBUG
-        print("✅ [ChatService] Received reply (\(response.reply.count) chars), \(response.sources.count) sources")
+        print("✅ [ChatService] Received reply (\(response.reply.count) chars), \(response.sources.count) sources, session: \(response.sessionId.prefix(8))...")
         #endif
 
         return response
@@ -97,6 +101,90 @@ class ChatService {
 
         #if DEBUG
         print("🗑️ [ChatService] Chat history cleared for user \(userId.uuidString.prefix(8))...")
+        #endif
+    }
+
+    // MARK: - Session Management
+
+    /// Fetches all chat sessions for the current user, sorted by most recent first
+    func fetchSessions() async throws -> [ChatSession] {
+        guard let userId = client.auth.currentUser?.id else {
+            #if DEBUG
+            print("⚠️ [ChatService] Cannot fetch sessions — no authenticated user")
+            #endif
+            return []
+        }
+
+        #if DEBUG
+        print("📋 [ChatService] Fetching chat sessions...")
+        #endif
+
+        let response: [ChatSession] = try await client
+            .from("chat_sessions")
+            .select()
+            .eq("user_id", value: userId)
+            .order("updated_at", ascending: false)
+            .execute()
+            .value
+
+        #if DEBUG
+        print("✅ [ChatService] Fetched \(response.count) sessions")
+        #endif
+
+        return response
+    }
+
+    /// Loads all messages for a specific session
+    func loadSessionMessages(sessionId: UUID) async throws -> [ChatMessageDTO] {
+        guard let userId = client.auth.currentUser?.id else {
+            #if DEBUG
+            print("⚠️ [ChatService] Cannot load session messages — no authenticated user")
+            #endif
+            return []
+        }
+
+        #if DEBUG
+        print("📖 [ChatService] Loading messages for session \(sessionId.uuidString.prefix(8))...")
+        #endif
+
+        let response: [ChatMessageDTO] = try await client
+            .from("chat_messages")
+            .select("id, role, content, created_at")
+            .eq("session_id", value: sessionId)
+            .eq("user_id", value: userId)
+            .order("created_at", ascending: true)
+            .execute()
+            .value
+
+        #if DEBUG
+        print("✅ [ChatService] Loaded \(response.count) messages")
+        #endif
+
+        return response
+    }
+
+    /// Deletes a chat session and all its messages (cascade delete via FK)
+    func deleteSession(sessionId: UUID) async throws {
+        guard let userId = client.auth.currentUser?.id else {
+            #if DEBUG
+            print("⚠️ [ChatService] Cannot delete session — no authenticated user")
+            #endif
+            return
+        }
+
+        #if DEBUG
+        print("🗑️ [ChatService] Deleting session \(sessionId.uuidString.prefix(8))...")
+        #endif
+
+        try await client
+            .from("chat_sessions")
+            .delete()
+            .eq("id", value: sessionId)
+            .eq("user_id", value: userId)
+            .execute()
+
+        #if DEBUG
+        print("✅ [ChatService] Session deleted")
         #endif
     }
 }

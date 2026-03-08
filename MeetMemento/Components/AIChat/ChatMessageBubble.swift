@@ -64,12 +64,28 @@ public struct ChatMessageBubble: View {
             )
         } else {
             // AI messages: support markdown/rich text (fallback)
-            // Using LocalizedStringKey to enable automatic markdown parsing
-            Text(LocalizedStringKey(message.content))
+            // Clean any JSON artifacts that might have leaked through
+            let cleanContent = cleanJSONFromContent(message.content)
+            Text(LocalizedStringKey(cleanContent))
                 .font(type.body1)
                 .foregroundStyle(theme.foreground)
                 .lineSpacing(type.bodyLineSpacing)
         }
+    }
+
+    // MARK: - JSON Cleanup
+
+    /// Extracts body text from content if it looks like JSON
+    private func cleanJSONFromContent(_ content: String) -> String {
+        // If content looks like JSON, try to extract body
+        if content.hasPrefix("{") && content.contains("\"body\"") {
+            if let data = content.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let body = json["body"] as? String {
+                return body
+            }
+        }
+        return content
     }
 }
 

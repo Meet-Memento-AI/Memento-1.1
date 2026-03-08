@@ -19,15 +19,25 @@ public struct ConfirmPinView: View {
 
     let originalPin: String
 
+    /// Whether this PIN is being set as a backup for FaceID users
+    public var isFaceIDBackup: Bool
+
     public var onComplete: (() -> Void)?
     public var onCancel: (() -> Void)?
 
+    /// Title changes based on context
+    private var titleText: String {
+        isFaceIDBackup ? "Confirm Backup PIN" : "Confirm Your PIN"
+    }
+
     public init(
         originalPin: String,
+        isFaceIDBackup: Bool = false,
         onComplete: (() -> Void)? = nil,
         onCancel: (() -> Void)? = nil
     ) {
         self.originalPin = originalPin
+        self.isFaceIDBackup = isFaceIDBackup
         self.onComplete = onComplete
         self.onCancel = onCancel
     }
@@ -43,7 +53,7 @@ public struct ConfirmPinView: View {
                 // Main content area
                 VStack(spacing: 0) {
                     // Title
-                    Text("Please, Confirm PIN-Code")
+                    Text(titleText)
                         .font(type.h3)
                         .foregroundStyle(theme.foreground)
                         .padding(.top, 40)
@@ -103,7 +113,8 @@ public struct ConfirmPinView: View {
                     }
                 }
         }
-        .navigationBarHidden(true)
+        .navigationBarBackButtonHidden(true)
+        .toolbar(.hidden, for: .navigationBar)
     }
 
     // MARK: - Subviews

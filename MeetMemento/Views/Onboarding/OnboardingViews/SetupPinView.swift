@@ -15,13 +15,29 @@ public struct SetupPinView: View {
     @State private var pin: String = ""
     @FocusState private var isPinFieldFocused: Bool
 
+    /// Whether this PIN is being set as a backup for FaceID users
+    public var isFaceIDBackup: Bool
     public var onComplete: ((String) -> Void)?
     public var onCancel: (() -> Void)?
 
+    /// Title changes based on context
+    private var titleText: String {
+        isFaceIDBackup ? "Create a Backup PIN" : "Create Your PIN"
+    }
+
+    /// Subtitle explaining purpose
+    private var subtitleText: String {
+        isFaceIDBackup
+            ? "This PIN unlocks your app if Face ID fails and encrypts your journals locally."
+            : "This PIN will protect and encrypt your private journals."
+    }
+
     public init(
+        isFaceIDBackup: Bool = false,
         onComplete: ((String) -> Void)? = nil,
         onCancel: (() -> Void)? = nil
     ) {
+        self.isFaceIDBackup = isFaceIDBackup
         self.onComplete = onComplete
         self.onCancel = onCancel
     }
@@ -37,11 +53,19 @@ public struct SetupPinView: View {
                 // Main content area
                 VStack(spacing: 0) {
                     // Title
-                    Text("Please, Set PIN-Code")
+                    Text(titleText)
                         .font(type.h3)
                         .foregroundStyle(theme.foreground)
                         .padding(.top, 40)
-                        .padding(.bottom, 60)
+                        .padding(.bottom, 12)
+
+                    // Subtitle
+                    Text(subtitleText)
+                        .font(type.body2)
+                        .foregroundStyle(theme.mutedForeground)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+                        .padding(.bottom, 40)
 
                     // PIN input fields
                     pinInputFields
@@ -82,7 +106,8 @@ public struct SetupPinView: View {
                     }
                 }
         }
-        .navigationBarHidden(true)
+        .navigationBarBackButtonHidden(true)
+        .toolbar(.hidden, for: .navigationBar)
     }
 
     // MARK: - Subviews

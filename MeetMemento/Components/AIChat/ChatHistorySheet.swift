@@ -9,8 +9,10 @@ import SwiftUI
 
 public struct ChatHistorySheet: View {
     let sessions: [ChatSession]
+    let isLoading: Bool
     let onSessionSelect: (ChatSession) -> Void
     let onNewChat: () -> Void
+    let onDeleteSession: ((ChatSession) -> Void)?
 
     @Environment(\.theme) private var theme
     @Environment(\.typography) private var type
@@ -18,12 +20,16 @@ public struct ChatHistorySheet: View {
 
     public init(
         sessions: [ChatSession],
+        isLoading: Bool = false,
         onSessionSelect: @escaping (ChatSession) -> Void,
-        onNewChat: @escaping () -> Void
+        onNewChat: @escaping () -> Void,
+        onDeleteSession: ((ChatSession) -> Void)? = nil
     ) {
         self.sessions = sessions
+        self.isLoading = isLoading
         self.onSessionSelect = onSessionSelect
         self.onNewChat = onNewChat
+        self.onDeleteSession = onDeleteSession
     }
 
     public var body: some View {
@@ -65,8 +71,16 @@ public struct ChatHistorySheet: View {
             .padding(.top, 20)
             .padding(.bottom, 24)
 
-            // Session list or empty state
-            if sessions.isEmpty {
+            // Session list or empty/loading state
+            if isLoading {
+                VStack {
+                    Spacer()
+                    ProgressView()
+                        .scaleEffect(1.2)
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity)
+            } else if sessions.isEmpty {
                 VStack(spacing: Spacing.md) {
                     Spacer()
 
@@ -88,10 +102,14 @@ public struct ChatHistorySheet: View {
                 .frame(maxWidth: .infinity)
                 .padding(Spacing.xl)
             } else {
-                ChatHistoryList(sessions: sessions) { session in
-                    dismiss()
-                    onSessionSelect(session)
-                }
+                ChatHistoryList(
+                    sessions: sessions,
+                    onSessionSelect: { session in
+                        dismiss()
+                        onSessionSelect(session)
+                    },
+                    onDelete: onDeleteSession
+                )
             }
         }
         .background(theme.background.ignoresSafeArea())

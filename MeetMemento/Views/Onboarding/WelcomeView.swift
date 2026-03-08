@@ -116,17 +116,6 @@ public struct WelcomeView: View {
                             .multilineTextAlignment(.center)
                             .transition(.opacity)
                     }
-
-                    #if DEBUG
-                    HStack(spacing: 12) {
-                        SecondaryButton(title: "Skip → Onboarding") {
-                            authViewModel.skipToOnboardingForTesting()
-                        }
-                        SecondaryButton(title: "Skip → App") {
-                            authViewModel.bypassToMainApp()
-                        }
-                    }
-                    #endif
                 }
                 .padding(.bottom, 8)
             }

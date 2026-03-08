@@ -38,14 +38,14 @@ struct YourEntriesView: View {
 
     var body: some View {
         Group {
-            if entryViewModel.isLoading && entryViewModel.entries.isEmpty {
-                // Loading state (only show spinner if no cached entries)
+            if !entryViewModel.hasInitiallyLoaded || (entryViewModel.isLoading && entryViewModel.entries.isEmpty) {
+                // Loading state - show until first load completes
                 loadingState
             } else if let errorMessage = entryViewModel.errorMessage, entryViewModel.entries.isEmpty {
                 // Error state (only show if no cached entries)
                 errorState(message: errorMessage)
             } else if entryViewModel.entries.isEmpty {
-                // Empty state
+                // Empty state - only after confirming no entries exist
                 emptyState
             } else {
                 // Content with entries grouped by month
@@ -114,11 +114,10 @@ struct YourEntriesView: View {
 
             Image(systemName: "book.closed.fill")
                 .font(.system(size: 36))
-                .foregroundStyle(PrimaryScale.primary700)
+                .foregroundStyle(PrimaryScale.primary600)
 
             Text("No journal entries yet")
                 .font(type.h3)
-                .fontWeight(.semibold)
                 .foregroundStyle(GrayScale.gray900)
                 .padding(.top, 16)
 
@@ -144,6 +143,7 @@ struct YourEntriesView: View {
     private var entriesList: some View {
         ScrollView(.vertical, showsIndicators: true) {
             LazyVStack(spacing: 32, pinnedViews: []) {
+
                 // Show error banner if there's an error (but we have cached entries)
                 if let errorMessage = entryViewModel.errorMessage {
                     HStack(spacing: 12) {

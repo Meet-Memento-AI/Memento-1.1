@@ -83,7 +83,8 @@ public struct YourGoalsView: View {
                 .padding(.bottom, 32)
             }
         }
-        .navigationBarHidden(true)
+        .navigationBarBackButtonHidden(true)
+        .toolbar(.hidden, for: .navigationBar)
     }
 
     // MARK: - Subviews

@@ -15,8 +15,8 @@ enum OnboardingRoute: Hashable {
     case learnAboutYourself
     case yourGoals
     case faceID
-    case setupPin
-    case confirmPin(originalPin: String)
+    case setupPin(isFaceIDBackup: Bool)
+    case confirmPin(originalPin: String, isFaceIDBackup: Bool)
     case loading
 }
 
@@ -92,16 +92,18 @@ public struct OnboardingCoordinatorView: View {
             )
             .environmentObject(authViewModel)
 
-        case .setupPin:
+        case .setupPin(let isFaceIDBackup):
             SetupPinView(
-                onComplete: { pin in handleSetupPinComplete(pin) },
+                isFaceIDBackup: isFaceIDBackup,
+                onComplete: { pin in handleSetupPinComplete(pin, isFaceIDBackup: isFaceIDBackup) },
                 onCancel: { handleBack() }
             )
             .environmentObject(authViewModel)
 
-        case .confirmPin(let originalPin):
+        case .confirmPin(let originalPin, let isFaceIDBackup):
             ConfirmPinView(
                 originalPin: originalPin,
+                isFaceIDBackup: isFaceIDBackup,
                 onComplete: { handleConfirmPinComplete() },
                 onCancel: { handleBack() }
             )
@@ -120,7 +122,7 @@ public struct OnboardingCoordinatorView: View {
     @ViewBuilder
     private var initialView: some View {
         if onboardingViewModel.shouldStartAtProfile {
-            YourNameView(onComplete: { handleYourNameComplete() }, isFirstStep: true)
+            YourNameView(onComplete: { handleYourNameComplete() }, isFirstStep: true, onBack: { handleBackToWelcome() })
                 .environmentObject(authViewModel)
         } else if onboardingViewModel.shouldStartAtPersonalization {
             LearnAboutYourselfView(onComplete: { userInput in handleLearnAboutYourselfComplete(userInput) }, isFirstStep: true)
@@ -184,18 +186,20 @@ public struct OnboardingCoordinatorView: View {
     }
 
     private func handleUseFaceID() {
+        // FaceID was already verified in FaceIDView
+        // Now navigate to PIN setup (required for all users as backup + encryption)
         onboardingViewModel.useFaceID = true
         SecurityService.shared.setSecurityMode(.faceID)
-        finishSecuritySetup()
+        navigationPath.append(OnboardingRoute.setupPin(isFaceIDBackup: true))
     }
 
     private func handleCreatePIN() {
         onboardingViewModel.useFaceID = false
-        navigationPath.append(OnboardingRoute.setupPin)
+        navigationPath.append(OnboardingRoute.setupPin(isFaceIDBackup: false))
     }
 
-    private func handleSetupPinComplete(_ pin: String) {
-        navigationPath.append(OnboardingRoute.confirmPin(originalPin: pin))
+    private func handleSetupPinComplete(_ pin: String, isFaceIDBackup: Bool) {
+        navigationPath.append(OnboardingRoute.confirmPin(originalPin: pin, isFaceIDBackup: isFaceIDBackup))
     }
 
     private func handleConfirmPinComplete() {
@@ -203,7 +207,11 @@ public struct OnboardingCoordinatorView: View {
         let pin = onboardingViewModel.confirmedPin
         if !pin.isEmpty {
             _ = SecurityService.shared.savePIN(pin)
-            SecurityService.shared.setSecurityMode(.pin)
+            // Only set to PIN mode if user chose PIN-only (not FaceID backup)
+            // FaceID users already have their mode set in handleUseFaceID()
+            if !onboardingViewModel.useFaceID {
+                SecurityService.shared.setSecurityMode(.pin)
+            }
         }
         finishSecuritySetup()
     }
@@ -211,6 +219,12 @@ public struct OnboardingCoordinatorView: View {
     private func handleBack() {
         if !navigationPath.isEmpty {
             navigationPath.removeLast()
+        }
+    }
+
+    private func handleBackToWelcome() {
+        Task {
+            await authViewModel.signOut()
         }
     }
 

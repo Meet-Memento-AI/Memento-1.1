@@ -67,24 +67,13 @@ public struct LearnAboutYourselfView: View {
                 }
             }
 
-            // Continue button at bottom
-            VStack {
-                Spacer()
-                PrimaryButton(title: "Continue") {
-                    completeStep()
-                }
-                .opacity(showCheckmark ? 1.0 : 0.5)
-                .disabled(!showCheckmark)
-                .accessibilityHint(showCheckmark ? "Save and continue" : "Enter at least 100 characters to continue")
-                .padding(.horizontal, 20)
-                .padding(.bottom, 32)
-            }
         }
         .overlay(alignment: .bottom) {
             microphoneFAB
-                .padding(.bottom, 100)
+                .padding(.bottom, 32)
         }
-        .navigationBarHidden(true)
+        .navigationBarBackButtonHidden(true)
+        .toolbar(.hidden, for: .navigationBar)
         .onAppear {
             // Auto-focus the text editor after a brief delay
             Task { @MainActor in
@@ -135,46 +124,55 @@ public struct LearnAboutYourselfView: View {
     // MARK: - Subviews
 
     private var headerSection: some View {
-        ZStack(alignment: .top) {
-            // Background gradient
-            LinearGradient(
-                gradient: Gradient(stops: [
-                    .init(color: theme.background, location: 0),
-                    .init(color: theme.background.opacity(0), location: 1)
-                ]),
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea(edges: .top)
-            .allowsHitTesting(false)
-            .frame(height: 64)
-
-            // Header content
-            HStack(alignment: .center, spacing: 12) {
-                // Back button (hidden on first step)
-                if !isFirstStep {
-                    IconButtonNav(
-                        icon: "chevron.left",
-                        iconSize: 20,
-                        buttonSize: 40,
-                        foregroundColor: theme.foreground,
-                        useDarkBackground: false,
-                        enableHaptic: true,
-                        onTap: { onBack?() ?? dismiss() }
-                    )
-                    .accessibilityLabel("Back")
-                }
-
-                Spacer()
-
-                // Placeholder for alignment
-                Color.clear
-                    .frame(width: 40, height: 40)
+        HStack(alignment: .center) {
+            // Back button (hidden on first step)
+            if !isFirstStep {
+                IconButtonNav(
+                    icon: "chevron.left",
+                    iconSize: 20,
+                    buttonSize: 40,
+                    foregroundColor: theme.foreground,
+                    useDarkBackground: false,
+                    enableHaptic: true,
+                    onTap: { onBack?() ?? dismiss() }
+                )
+                .accessibilityLabel("Back")
+            } else {
+                Color.clear.frame(width: 40, height: 40)
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 12)
-            .padding(.bottom, 16)
+
+            Spacer()
+
+            // Circular checkmark save button
+            saveButton
         }
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
+        .padding(.bottom, 8)
+    }
+
+    private var saveButton: some View {
+        Button {
+            completeStep()
+        } label: {
+            ZStack {
+                Circle()
+                    .fill(showCheckmark ? theme.primary : theme.mutedForeground.opacity(0.3))
+                    .frame(width: 40, height: 40)
+
+                if isProcessing {
+                    ProgressView()
+                        .tint(.white)
+                } else {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.white)
+                }
+            }
+        }
+        .disabled(!canProceed)
+        .accessibilityLabel("Save and continue")
+        .accessibilityHint(showCheckmark ? "Double-tap to save entry" : "Enter at least 100 characters")
     }
 
     private var titleSection: some View {

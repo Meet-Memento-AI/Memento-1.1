@@ -27,6 +27,7 @@ class AuthViewModel: ObservableObject {
     @Published var isAuthenticated = false
     @Published var hasCompletedOnboarding = false
     @Published var authState: AuthState = .unauthenticated
+    @Published var isInitializing: Bool = true  // Track initialization state
 
     // Pending profile from Apple Sign In (stub/flow)
     var pendingFirstName: String?
@@ -38,6 +39,21 @@ class AuthViewModel: ObservableObject {
 
     /// Restores session on app launch and checks onboarding status from DB.
     func initializeAuth() async {
+        self.isInitializing = true
+
+        defer {
+            Task { @MainActor in
+                self.isInitializing = false
+            }
+        }
+
+        // Check for inactivity timeout FIRST (14+ days of inactivity)
+        if SecurityService.shared.shouldAutoLogout() {
+            print("⏰ [Auth] Auto-logout triggered: 14+ days of inactivity")
+            await performAutoLogout()
+            return
+        }
+
         do {
             let session = try await client.auth.session
 
@@ -51,6 +67,9 @@ class AuthViewModel: ObservableObject {
             self.hasCompletedOnboarding = hasOnboarded
             self.authState = .authenticated(needsOnboarding: !hasOnboarded)
 
+            // Update activity timestamp on successful session restore
+            SecurityService.shared.updateActivityTimestamp()
+
             print("✅ Supabase Session Restored: \(session.user.id), onboarded: \(hasOnboarded)")
         } catch {
             print("ℹ️ No active Supabase session found.")
@@ -58,6 +77,16 @@ class AuthViewModel: ObservableObject {
             self.hasCompletedOnboarding = false
             self.authState = .unauthenticated
         }
+    }
+
+    /// Performs auto-logout due to inactivity.
+    private func performAutoLogout() async {
+        try? await client.auth.signOut()
+        SecurityService.shared.clearActivityTimestamp()
+
+        self.isAuthenticated = false
+        self.hasCompletedOnboarding = false
+        self.authState = .unauthenticated
     }
 
     /// Explicitly check auth state (similar to initializeAuth, can range depending on logic)
@@ -94,6 +123,9 @@ class AuthViewModel: ObservableObject {
         self.isAuthenticated = true
         self.hasCompletedOnboarding = hasOnboarded
         self.authState = .authenticated(needsOnboarding: !hasOnboarded)
+
+        // Update activity timestamp on successful sign-in
+        SecurityService.shared.updateActivityTimestamp()
     }
 
     var currentEmail: String?
@@ -107,7 +139,9 @@ class AuthViewModel: ObservableObject {
 
     func signOut() async {
         try? await client.auth.signOut()
+        SecurityService.shared.clearActivityTimestamp()
         self.isAuthenticated = false
+        self.hasCompletedOnboarding = false
         self.authState = .unauthenticated
     }
 
@@ -179,6 +213,9 @@ class AuthViewModel: ObservableObject {
         self.hasCompletedOnboarding = hasOnboarded
         self.authState = .authenticated(needsOnboarding: !hasOnboarded)
 
+        // Update activity timestamp on successful sign-in
+        SecurityService.shared.updateActivityTimestamp()
+
         print("✅ Apple Sign In successful for user: \(session.user.id)")
     }
 
@@ -209,6 +246,9 @@ class AuthViewModel: ObservableObject {
         self.hasCompletedOnboarding = hasOnboarded
         self.authState = .authenticated(needsOnboarding: !hasOnboarded)
 
+        // Update activity timestamp on successful sign-in
+        SecurityService.shared.updateActivityTimestamp()
+
         print("✅ Google Sign In successful for user: \(session.user.id)")
     }
 
@@ -218,29 +258,55 @@ class AuthViewModel: ObservableObject {
             throw AuthError.notAuthenticated
         }
 
-        // 1. Delete user data from public.users table
-        try await client
-            .from("users")
-            .delete()
-            .eq("id", value: userId)
-            .execute()
+        // Try to call the delete_user() RPC (deletes auth.users and cascades)
+        do {
+            try await client.rpc("delete_user").execute()
+            print("✅ [Auth] User deleted via RPC")
+        } catch {
+            // Fallback: manually delete app data if RPC fails
+            print("⚠️ [Auth] RPC failed, falling back to manual deletion: \(error)")
 
-        // 2. Delete all journal entries
-        try await client
-            .from("journal_entries")
-            .delete()
-            .eq("user_id", value: userId)
-            .execute()
+            // Delete chat data first (foreign key order)
+            _ = try? await client
+                .from("chat_messages")
+                .delete()
+                .eq("user_id", value: userId)
+                .execute()
 
-        // 3. Sign out (full auth user deletion requires Edge Function with service_role)
+            _ = try? await client
+                .from("chat_sessions")
+                .delete()
+                .eq("user_id", value: userId)
+                .execute()
+
+            // Delete journal entries
+            _ = try? await client
+                .from("journal_entries")
+                .delete()
+                .eq("user_id", value: userId)
+                .execute()
+
+            // Delete user profile
+            _ = try? await client
+                .from("users")
+                .delete()
+                .eq("id", value: userId)
+                .execute()
+
+            // Note: auth.users cannot be deleted without service_role or RPC
+            // User data is cleaned up, but auth identity persists
+        }
+
+        // Sign out
         try await client.auth.signOut()
 
-        // 4. Clear local data
+        // Clear local data
         UserDefaults.standard.removeObject(forKey: "memento_first_name")
         UserDefaults.standard.removeObject(forKey: "memento_last_name")
         SecurityService.shared.clearAll()
+        LocalJournalStorage.shared.clearAll()
 
-        // 5. Update state
+        // Update state
         await MainActor.run {
             self.isAuthenticated = false
             self.authState = .unauthenticated

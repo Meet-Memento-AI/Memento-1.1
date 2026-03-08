@@ -18,6 +18,10 @@ public struct LoadingStateView: View {
     @State private var currentTipIndex = 0
     @State private var showTip = false
 
+    // Resource tracking for cleanup
+    @State private var tipRotationTimer: Timer?
+    @State private var loadingTasks: [Task<Void, Never>] = []
+
     public var onComplete: (() -> Void)?
 
     public init(onComplete: (() -> Void)? = nil) {
@@ -71,6 +75,15 @@ public struct LoadingStateView: View {
         .onAppear {
             startLoadingSequence()
         }
+        .onDisappear {
+            // Clean up timer to prevent retain cycle
+            tipRotationTimer?.invalidate()
+            tipRotationTimer = nil
+
+            // Cancel all tracked tasks
+            loadingTasks.forEach { $0.cancel() }
+            loadingTasks.removeAll()
+        }
     }
 
     // MARK: - Loading Sequence
@@ -82,29 +95,35 @@ public struct LoadingStateView: View {
             startProgressiveLoading()
         } else {
             // Modern fluid entrance
-            Task { @MainActor in
+            let entranceTask = Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 300_000_000)
+                guard !Task.isCancelled else { return }
                 withAnimation(.easeIn(duration: 0.4)) {
                     showProgress = true
                 }
                 startProgressiveLoading()
             }
+            loadingTasks.append(entranceTask)
         }
 
         // Show tips after 1.5 seconds
-        Task { @MainActor in
+        let tipsTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 1_500_000_000)
+            guard !Task.isCancelled else { return }
             withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
                 showTip = true
             }
             startTipRotation()
         }
+        loadingTasks.append(tipsTask)
 
         // Complete after content loads (simulated with 5 second delay)
-        Task { @MainActor in
+        let completionTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 5_000_000_000)
+            guard !Task.isCancelled else { return }
             onComplete?()
         }
+        loadingTasks.append(completionTask)
     }
 
     private func startProgressiveLoading() {
@@ -112,25 +131,29 @@ public struct LoadingStateView: View {
         loadingPhase = .authenticating
 
         // Phase 2: Loading data (2-4s)
-        Task { @MainActor in
+        let phase2Task = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 2_000_000_000)
+            guard !Task.isCancelled else { return }
             withAnimation {
                 loadingPhase = .loadingData
             }
         }
+        loadingTasks.append(phase2Task)
 
         // Phase 3: Almost ready (4s+)
-        Task { @MainActor in
+        let phase3Task = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 4_000_000_000)
+            guard !Task.isCancelled else { return }
             withAnimation {
                 loadingPhase = .finalizing
             }
         }
+        loadingTasks.append(phase3Task)
     }
 
     private func startTipRotation() {
         // Rotate tips every 6 seconds with smooth transition
-        Timer.scheduledTimer(withTimeInterval: 6.0, repeats: true) { _ in
+        tipRotationTimer = Timer.scheduledTimer(withTimeInterval: 6.0, repeats: true) { _ in
             withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) {
                 currentTipIndex = (currentTipIndex + 1) % loadingTips.count
             }

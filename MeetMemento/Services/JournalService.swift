@@ -11,14 +11,19 @@ class JournalService {
 
     /// Fetches all non-deleted journal entries for the current user, ordered by creation date (newest first).
     func fetchEntries() async throws -> [JournalEntry] {
+        guard let userId = client.auth.currentUser?.id else {
+            return []
+        }
+
         let response: [JournalEntryDTO] = try await client
             .from("journal_entries")
             .select()
+            .eq("user_id", value: userId)
             .eq("is_deleted", value: false)
             .order("created_at", ascending: false)
             .execute()
             .value
-        
+
         return response.compactMap { $0.toDomain() }
     }
 
@@ -53,11 +58,17 @@ class JournalService {
 
     /// Updates an existing journal entry.
     func updateEntry(_ entry: JournalEntry) async throws {
+        guard let userId = client.auth.currentUser?.id else {
+            throw NSError(domain: "JournalService", code: 2,
+                          userInfo: [NSLocalizedDescriptionKey: "No authenticated user"])
+        }
+
         let dto = JournalEntryDTO(from: entry)
         try await client
             .from("journal_entries")
             .update(dto)
             .eq("id", value: entry.id)
+            .eq("user_id", value: userId)
             .execute()
 
         // Trigger embedding regeneration (fire-and-forget)
@@ -79,18 +90,134 @@ class JournalService {
 
     /// Soft deletes a journal entry by setting is_deleted = true.
     func deleteEntry(id: UUID) async throws {
+        guard let userId = client.auth.currentUser?.id else {
+            throw NSError(domain: "JournalService", code: 2,
+                          userInfo: [NSLocalizedDescriptionKey: "No authenticated user"])
+        }
+
         // Formatter for deleted_at
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let dateString = formatter.string(from: Date())
-        
+
         let updatePayload = SoftDeleteUpdate(is_deleted: true, deleted_at: dateString)
-        
+
         try await client
             .from("journal_entries")
             .update(updatePayload)
             .eq("id", value: id)
+            .eq("user_id", value: userId)
             .execute()
+
+        // Also delete local encrypted content
+        LocalJournalStorage.shared.deleteEncrypted(entryId: id)
+    }
+
+    // MARK: - Encrypted Operations (PIN-aware)
+
+    /// Creates a new journal entry with local encryption.
+    /// Saves plaintext to Supabase (for recovery) and encrypted content locally.
+    /// - Parameters:
+    ///   - entry: The journal entry to create
+    ///   - pin: The user's PIN for encryption
+    /// - Returns: The created entry
+    @discardableResult
+    func createEntry(_ entry: JournalEntry, withPIN pin: String) async throws -> JournalEntry {
+        // 1. Save plaintext to Supabase (for recovery)
+        let created = try await createEntry(entry)
+
+        // 2. Encrypt content locally with PIN
+        if let encrypted = EncryptionService.shared.encrypt(entry.content, withPIN: pin) {
+            do {
+                try LocalJournalStorage.shared.saveEncrypted(entryId: created.id, encryptedData: encrypted)
+            } catch {
+                #if DEBUG
+                print("⚠️ [JournalService] Failed to save encrypted content locally: \(error)")
+                #endif
+                // Don't fail the operation - Supabase has the backup
+            }
+        }
+
+        return created
+    }
+
+    /// Updates a journal entry with local encryption.
+    /// - Parameters:
+    ///   - entry: The journal entry to update
+    ///   - pin: The user's PIN for encryption
+    func updateEntry(_ entry: JournalEntry, withPIN pin: String) async throws {
+        // 1. Update plaintext in Supabase (for recovery)
+        try await updateEntry(entry)
+
+        // 2. Re-encrypt content locally with PIN
+        if let encrypted = EncryptionService.shared.encrypt(entry.content, withPIN: pin) {
+            do {
+                try LocalJournalStorage.shared.saveEncrypted(entryId: entry.id, encryptedData: encrypted)
+            } catch {
+                #if DEBUG
+                print("⚠️ [JournalService] Failed to update encrypted content locally: \(error)")
+                #endif
+            }
+        }
+    }
+
+    /// Fetches entries and decrypts local content where available.
+    /// Falls back to Supabase plaintext if local decryption fails.
+    /// - Parameter pin: The user's PIN for decryption
+    /// - Returns: Array of journal entries with decrypted content
+    func fetchEntries(withPIN pin: String) async throws -> [JournalEntry] {
+        // Fetch from Supabase
+        let entries = try await fetchEntries()
+
+        // Try to decrypt local content for each entry
+        return entries.map { entry in
+            // Check if we have local encrypted content
+            if let encryptedData = LocalJournalStorage.shared.loadEncrypted(entryId: entry.id),
+               let decrypted = EncryptionService.shared.decrypt(encryptedData, withPIN: pin) {
+                // Use locally decrypted content
+                return JournalEntry(
+                    id: entry.id,
+                    userId: entry.userId,
+                    title: entry.title,
+                    content: decrypted,
+                    wordCount: entry.wordCount,
+                    sentimentScore: entry.sentimentScore,
+                    isDeleted: entry.isDeleted,
+                    deletedAt: entry.deletedAt,
+                    contentHash: entry.contentHash,
+                    createdAt: entry.createdAt,
+                    updatedAt: entry.updatedAt
+                )
+            }
+
+            // Fall back to Supabase plaintext (recovery mode)
+            // Also re-encrypt locally for next time
+            if let encrypted = EncryptionService.shared.encrypt(entry.content, withPIN: pin) {
+                try? LocalJournalStorage.shared.saveEncrypted(entryId: entry.id, encryptedData: encrypted)
+            }
+
+            return entry
+        }
+    }
+
+    /// Re-encrypts all entries with a new PIN.
+    /// Call this when the user changes their PIN.
+    /// - Parameter newPIN: The new PIN to use for encryption
+    func reEncryptAll(withNewPIN newPIN: String) async throws {
+        // Clear old encrypted storage
+        LocalJournalStorage.shared.clearAll()
+
+        // Fetch entries from Supabase and re-encrypt
+        let entries = try await fetchEntries()
+        for entry in entries {
+            if let encrypted = EncryptionService.shared.encrypt(entry.content, withPIN: newPIN) {
+                try? LocalJournalStorage.shared.saveEncrypted(entryId: entry.id, encryptedData: encrypted)
+            }
+        }
+
+        #if DEBUG
+        print("🔐 [JournalService] Re-encrypted \(entries.count) entries with new PIN")
+        #endif
     }
 }
 

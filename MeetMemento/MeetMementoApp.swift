@@ -10,6 +10,8 @@ import SwiftUI
 @main
 struct MeetMementoApp: App {
     @StateObject private var authViewModel = AuthViewModel()
+    @StateObject private var lockScreenViewModel = LockScreenViewModel()
+    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         #if DEBUG
@@ -20,25 +22,37 @@ struct MeetMementoApp: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                if authViewModel.isAuthenticated && authViewModel.hasCompletedOnboarding {
-                    // Fully onboarded user - show main app
-                    ContentView()
+                if authViewModel.isInitializing {
+                    // Show launch screen / loading while checking auth
+                    LaunchLoadingView()
                         .useTheme()
                         .useTypography()
-                        .environmentObject(authViewModel)
-                        .onAppear {
-                            #if DEBUG
-                            print("🔴 ContentView appeared")
-                            #endif
-                        }
+                } else if authViewModel.isAuthenticated && authViewModel.hasCompletedOnboarding {
+                    // LOGGED IN: Show lock screen for verification, then main app
+                    if lockScreenViewModel.shouldShowLockScreen {
+                        LockScreenView(viewModel: lockScreenViewModel)
+                            .useTheme()
+                            .useTypography()
+                            .environmentObject(authViewModel)
+                    } else {
+                        ContentView()
+                            .useTheme()
+                            .useTypography()
+                            .environmentObject(authViewModel)
+                            .onAppear {
+                                #if DEBUG
+                                print("🔴 ContentView appeared")
+                                #endif
+                            }
+                    }
                 } else if authViewModel.isAuthenticated && !authViewModel.hasCompletedOnboarding {
-                    // Authenticated but not onboarded (Create Account flow) - show onboarding
+                    // Authenticated but needs onboarding
                     OnboardingCoordinatorView()
                         .useTheme()
                         .useTypography()
                         .environmentObject(authViewModel)
                 } else {
-                    // Not authenticated - show WelcomeView
+                    // LOGGED OUT: Show welcome/sign-in
                     WelcomeView()
                         .useTheme()
                         .useTypography()
@@ -55,14 +69,22 @@ struct MeetMementoApp: App {
                 #if DEBUG
                 print("🔴 .task block started")
                 #endif
-                // Initialize auth AFTER UI renders to prevent SIGKILL crashes
-                // Note: checkAuthState() already checks onboarding status atomically,
-                // no need for separate checkOnboardingStatus() call
                 await authViewModel.initializeAuth()
-
                 #if DEBUG
                 print("🔴 .task block completed")
                 #endif
+            }
+            .onChange(of: scenePhase) { oldPhase, newPhase in
+                #if DEBUG
+                print("🔴 Scene phase changed: \(oldPhase) -> \(newPhase)")
+                #endif
+                if newPhase == .background || newPhase == .inactive {
+                    lockScreenViewModel.lock()
+                }
+                if newPhase == .active && authViewModel.isAuthenticated {
+                    // Update activity timestamp when app becomes active
+                    SecurityService.shared.updateActivityTimestamp()
+                }
             }
             .onOpenURL { url in
                 #if DEBUG

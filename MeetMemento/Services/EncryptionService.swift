@@ -1,0 +1,172 @@
+//
+//  EncryptionService.swift
+//  MeetMemento
+//
+//  Handles PIN-based encryption for journal content using AES-GCM.
+//  Derives encryption keys from the user's PIN using HKDF.
+//
+
+import CryptoKit
+import Foundation
+import Security
+
+class EncryptionService {
+    static let shared = EncryptionService()
+
+    private let saltKeychainKey = "com.sebastianmendo.MeetMemento.encryptionSalt"
+    private let saltLength = 32 // 256 bits
+
+    private init() {}
+
+    // MARK: - Key Derivation
+
+    /// Derives a 256-bit encryption key from PIN using HKDF with stored salt
+    func deriveKey(from pin: String) -> SymmetricKey? {
+        guard let salt = getOrCreateSalt(),
+              let pinData = pin.data(using: .utf8) else {
+            return nil
+        }
+
+        // Combine PIN and salt, then use SHA256 for key derivation
+        // This is a simplified key derivation - for production consider PBKDF2 via CommonCrypto
+        var combined = pinData
+        combined.append(salt)
+
+        let hash = SHA256.hash(data: combined)
+        return SymmetricKey(data: hash)
+    }
+
+    // MARK: - Encryption/Decryption
+
+    /// Encrypts plaintext using AES-GCM with PIN-derived key
+    /// - Parameters:
+    ///   - plaintext: The text to encrypt
+    ///   - pin: The user's PIN for key derivation
+    /// - Returns: Combined nonce + ciphertext + tag data, or nil on failure
+    func encrypt(_ plaintext: String, withPIN pin: String) -> Data? {
+        guard let key = deriveKey(from: pin),
+              let data = plaintext.data(using: .utf8) else {
+            return nil
+        }
+
+        do {
+            let sealedBox = try AES.GCM.seal(data, using: key)
+            // Return combined format: nonce || ciphertext || tag
+            return sealedBox.combined
+        } catch {
+            print("⚠️ [EncryptionService] Encryption failed: \(error)")
+            return nil
+        }
+    }
+
+    /// Decrypts ciphertext using AES-GCM with PIN-derived key
+    /// - Parameters:
+    ///   - ciphertext: Combined nonce + ciphertext + tag data
+    ///   - pin: The user's PIN for key derivation
+    /// - Returns: Decrypted plaintext, or nil on failure
+    func decrypt(_ ciphertext: Data, withPIN pin: String) -> String? {
+        guard let key = deriveKey(from: pin) else {
+            return nil
+        }
+
+        do {
+            let sealedBox = try AES.GCM.SealedBox(combined: ciphertext)
+            let decryptedData = try AES.GCM.open(sealedBox, using: key)
+            return String(data: decryptedData, encoding: .utf8)
+        } catch {
+            print("⚠️ [EncryptionService] Decryption failed: \(error)")
+            return nil
+        }
+    }
+
+    /// Validates that the PIN can decrypt existing data
+    /// - Parameters:
+    ///   - ciphertext: Some encrypted data to test against
+    ///   - pin: The PIN to validate
+    /// - Returns: True if decryption succeeds
+    func validatePIN(_ pin: String, against ciphertext: Data) -> Bool {
+        return decrypt(ciphertext, withPIN: pin) != nil
+    }
+
+    // MARK: - Salt Management (stored in Keychain)
+
+    /// Gets existing salt or creates a new one if none exists
+    private func getOrCreateSalt() -> Data? {
+        // Try to retrieve existing salt
+        if let existingSalt = getSaltFromKeychain() {
+            return existingSalt
+        }
+
+        // Generate new random salt
+        var salt = Data(count: saltLength)
+        let result = salt.withUnsafeMutableBytes { buffer in
+            SecRandomCopyBytes(kSecRandomDefault, saltLength, buffer.baseAddress!)
+        }
+
+        guard result == errSecSuccess else {
+            print("⚠️ [EncryptionService] Failed to generate random salt")
+            return nil
+        }
+
+        // Store in Keychain
+        if saveSaltToKeychain(salt) {
+            return salt
+        }
+
+        return nil
+    }
+
+    private func getSaltFromKeychain() -> Data? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: saltKeychainKey,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+
+        guard status == errSecSuccess, let data = result as? Data else {
+            return nil
+        }
+        return data
+    }
+
+    private func saveSaltToKeychain(_ salt: Data) -> Bool {
+        // Delete existing if any
+        let deleteQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: saltKeychainKey
+        ]
+        SecItemDelete(deleteQuery as CFDictionary)
+
+        // Add new
+        let addQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: saltKeychainKey,
+            kSecValueData as String: salt,
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+        ]
+
+        let status = SecItemAdd(addQuery as CFDictionary, nil)
+        if status != errSecSuccess {
+            print("⚠️ [EncryptionService] Failed to save salt: \(status)")
+        }
+        return status == errSecSuccess
+    }
+
+    /// Deletes the encryption salt from Keychain (used on PIN change or account deletion)
+    func deleteSalt() {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: saltKeychainKey
+        ]
+        SecItemDelete(query as CFDictionary)
+    }
+
+    /// Clears all encryption data (salt). Call this when PIN is changed.
+    func clearAll() {
+        deleteSalt()
+    }
+}

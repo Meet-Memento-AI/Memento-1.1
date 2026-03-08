@@ -20,7 +20,6 @@ public struct AIChatView: View {
     @State private var selectedCitations: [JournalCitation]? = nil
     @State private var showCitationsSheet = false
     @State private var showChatHistorySheet = false
-    @State private var chatSessions: [ChatSession] = ChatSession.mockSessions // Mock data for now
     @State private var scrollTask: Task<Void, Never>?
     @State private var scrollProxy: ScrollViewProxy?
     @StateObject private var keyboardObserver = KeyboardObserver()
@@ -91,14 +90,25 @@ public struct AIChatView: View {
         }
         .sheet(isPresented: $showChatHistorySheet) {
             ChatHistorySheet(
-                sessions: chatSessions,
+                sessions: viewModel.sessions,
+                isLoading: viewModel.isLoadingSessions,
                 onSessionSelect: { session in
                     loadSession(session)
                 },
                 onNewChat: {
                     startNewChat()
+                },
+                onDeleteSession: { session in
+                    Task {
+                        await viewModel.deleteSession(session)
+                    }
                 }
             )
+        }
+        .onAppear {
+            Task {
+                await viewModel.fetchSessions()
+            }
         }
         .alert("Something went wrong", isPresented: $viewModel.showingError) {
             Button("OK", role: .cancel) {}
@@ -112,7 +122,7 @@ public struct AIChatView: View {
     private var messagesScrollView: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: 16) {
+                LazyVStack(spacing: 32) {
                     if viewModel.messages.isEmpty && !viewModel.isLoading {
                         VStack(alignment: .leading, spacing: 24) {
                             // Extra top padding when embedded to account for floating header
@@ -149,7 +159,7 @@ public struct AIChatView: View {
                         .frame(maxWidth: .infinity, alignment: .topLeading)
                         .id("empty")
                     } else {
-                        VStack(alignment: .leading, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 32) {
                             ForEach(viewModel.messages) { message in
                                 ChatMessageBubble(
                                     message: message,
@@ -266,13 +276,14 @@ public struct AIChatView: View {
     // MARK: - Chat History Actions
 
     private func loadSession(_ session: ChatSession) {
-        // TODO: Load actual session messages from backend
-        viewModel.sendMessage(prompt: session.title)
+        Task {
+            await viewModel.loadSession(session)
+        }
     }
 
     private func startNewChat() {
         withAnimation {
-            viewModel.clearConversation()
+            viewModel.startNewChat()
         }
     }
 }

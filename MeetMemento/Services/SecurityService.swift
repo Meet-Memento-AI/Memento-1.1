@@ -14,11 +14,49 @@ class SecurityService {
 
     private let pinKeychainKey = "com.sebastianmendo.MeetMemento.userPIN"
     private let securityModeKey = "com.sebastianmendo.MeetMemento.securityMode"
+    private let lastActivityKey = "com.sebastianmendo.MeetMemento.lastActivityTimestamp"
+    private let inactivityTimeoutDays: Double = 14
 
     enum SecurityMode: String {
         case faceID
         case pin
         case none
+    }
+
+    // MARK: - Activity Tracking
+
+    /// Returns the last recorded activity timestamp, or nil if never set.
+    var lastActivityTimestamp: Date? {
+        get {
+            guard let timestamp = UserDefaults.standard.object(forKey: lastActivityKey) as? Date else {
+                return nil
+            }
+            return timestamp
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: lastActivityKey)
+        }
+    }
+
+    /// Updates the last activity timestamp to the current time.
+    func updateActivityTimestamp() {
+        lastActivityTimestamp = Date()
+    }
+
+    /// Checks if the user should be auto-logged out due to inactivity (14+ days).
+    func shouldAutoLogout() -> Bool {
+        guard let lastActivity = lastActivityTimestamp else {
+            // No previous activity recorded - user is new or data was cleared
+            return false
+        }
+
+        let daysSinceActivity = Date().timeIntervalSince(lastActivity) / (60 * 60 * 24)
+        return daysSinceActivity >= inactivityTimeoutDays
+    }
+
+    /// Clears the activity timestamp (called on sign out).
+    func clearActivityTimestamp() {
+        UserDefaults.standard.removeObject(forKey: lastActivityKey)
     }
 
     // MARK: - Security Mode
@@ -136,9 +174,10 @@ class SecurityService {
         SecItemDelete(query as CFDictionary)
     }
 
-    /// Clears all security settings (PIN + mode). Used on account deletion.
+    /// Clears all security settings (PIN + mode + activity timestamp). Used on account deletion.
     func clearAll() {
         deletePIN()
         UserDefaults.standard.removeObject(forKey: securityModeKey)
+        clearActivityTimestamp()
     }
 }

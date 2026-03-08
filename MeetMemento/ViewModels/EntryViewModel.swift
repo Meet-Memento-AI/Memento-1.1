@@ -15,8 +15,15 @@ import Supabase
 class EntryViewModel: ObservableObject {
     @Published var entries: [Entry] = []
     @Published var isLoading = false
+    @Published var hasInitiallyLoaded = false
     @Published var errorMessage: String?
     @Published var userFirstName: String = ""
+
+    /// Session PIN stored in memory for encryption operations (cleared on lock)
+    private var sessionPIN: String?
+
+    /// Whether we have a valid session PIN for encryption
+    var hasSessionPIN: Bool { sessionPIN != nil }
 
     // Computed property for lazy grouping - reduces memory churn vs didSet
     var entriesByMonth: [MonthGroup] {
@@ -27,6 +34,24 @@ class EntryViewModel: ObservableObject {
         return grouped.map { (monthStart, entries) in
             MonthGroup(monthStart: monthStart, entries: entries.sorted { $0.createdAt > $1.createdAt })
         }.sorted { $0.monthStart > $1.monthStart }
+    }
+
+    // MARK: - Session PIN Management
+
+    /// Sets the session PIN for encryption operations (call after unlock)
+    func setSessionPIN(_ pin: String) {
+        self.sessionPIN = pin
+        #if DEBUG
+        print("🔐 [EntryViewModel] Session PIN set")
+        #endif
+    }
+
+    /// Clears the session PIN (call on app lock)
+    func clearSessionPIN() {
+        self.sessionPIN = nil
+        #if DEBUG
+        print("🔐 [EntryViewModel] Session PIN cleared")
+        #endif
     }
 
     // MARK: - Search
@@ -65,7 +90,13 @@ class EntryViewModel: ObservableObject {
 
         while retryCount < maxRetries {
             do {
-                let userEntries = try await JournalService.shared.fetchEntries()
+                // Use PIN-encrypted fetch if session PIN is available
+                let userEntries: [JournalEntry]
+                if let pin = sessionPIN {
+                    userEntries = try await JournalService.shared.fetchEntries(withPIN: pin)
+                } else {
+                    userEntries = try await JournalService.shared.fetchEntries()
+                }
                 self.entries = userEntries.map { mapToEntry($0) }
 
                 // Load user profile to get first name
@@ -91,6 +122,7 @@ class EntryViewModel: ObservableObject {
         }
         #endif
 
+        hasInitiallyLoaded = true
         isLoading = false
     }
 
@@ -155,7 +187,13 @@ class EntryViewModel: ObservableObject {
             )
 
             do {
-                let created = try await JournalService.shared.createEntry(newJournalEntry)
+                // Use PIN-encrypted create if session PIN is available
+                let created: JournalEntry
+                if let pin = sessionPIN {
+                    created = try await JournalService.shared.createEntry(newJournalEntry, withPIN: pin)
+                } else {
+                    created = try await JournalService.shared.createEntry(newJournalEntry)
+                }
                 // Replace temp entry with server-created entry (with real ID)
                 if let index = entries.firstIndex(where: { $0.id == tempId }) {
                     entries[index] = mapToEntry(created)
@@ -201,7 +239,12 @@ class EntryViewModel: ObservableObject {
             )
 
             do {
-                try await JournalService.shared.updateEntry(updatedJournalEntry)
+                // Use PIN-encrypted update if session PIN is available
+                if let pin = sessionPIN {
+                    try await JournalService.shared.updateEntry(updatedJournalEntry, withPIN: pin)
+                } else {
+                    try await JournalService.shared.updateEntry(updatedJournalEntry)
+                }
                 // Optimistic update or refresh
                 if let i = entries.firstIndex(where: { $0.id == entry.id }) {
                     entries[i] = entry

@@ -13,6 +13,9 @@ public struct FaceIDView: View {
     @Environment(\.typography) private var type
     @EnvironmentObject var onboardingViewModel: OnboardingViewModel
 
+    @State private var isAuthenticating: Bool = false
+    @State private var showError: Bool = false
+
     public var onUseFaceID: (() -> Void)?
     public var onCreatePIN: (() -> Void)?
     public var isFirstStep: Bool = false
@@ -70,8 +73,23 @@ public struct FaceIDView: View {
             VStack {
                 Spacer()
                 VStack(spacing: 16) {
-                    PrimaryButton(title: "Use Face ID") {
-                        handleUseFaceID()
+                    // Error message
+                    if showError {
+                        Text("Face ID authentication failed. Please try again or use a PIN.")
+                            .font(.system(size: 14))
+                            .foregroundStyle(Color.red)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 20)
+                    }
+
+                    if isAuthenticating {
+                        ProgressView()
+                            .tint(theme.primary)
+                            .padding(.vertical, 16)
+                    } else {
+                        PrimaryButton(title: "Use Face ID") {
+                            handleUseFaceID()
+                        }
                     }
 
                     SecondaryButton(title: "Create a PIN instead") {
@@ -82,7 +100,8 @@ public struct FaceIDView: View {
                 .padding(.bottom, 32)
             }
         }
-        .navigationBarHidden(true)
+        .navigationBarBackButtonHidden(true)
+        .toolbar(.hidden, for: .navigationBar)
     }
 
     // MARK: - Subviews
@@ -134,8 +153,27 @@ public struct FaceIDView: View {
 
     private func handleUseFaceID() {
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-        onboardingViewModel.useFaceID = true
-        onUseFaceID?()
+
+        guard !isAuthenticating else { return }
+        isAuthenticating = true
+        showError = false
+
+        Task {
+            let success = await SecurityService.shared.authenticateWithBiometrics(
+                reason: "Set up Face ID for Memento"
+            )
+
+            await MainActor.run {
+                isAuthenticating = false
+
+                if success {
+                    onboardingViewModel.useFaceID = true
+                    onUseFaceID?()
+                } else {
+                    showError = true
+                }
+            }
+        }
     }
 
     private func handleCreatePIN() {

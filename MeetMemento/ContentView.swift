@@ -133,6 +133,7 @@ public struct ContentView: View {
     @Environment(\.theme) private var theme
     @Environment(\.typography) private var type
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject var authViewModel: AuthViewModel
 
     public init() {}
@@ -210,11 +211,25 @@ public struct ContentView: View {
                 selectedTab = tab
                 didSetPreviewTab = true
             }
+            // Update activity timestamp when ContentView appears
+            SecurityService.shared.updateActivityTimestamp()
         }
         .onChange(of: selectedTab) { _, newTab in
             // Sync swipeProgress when tab changes via pill tap (fallback for geometry tracking)
             withAnimation(.smooth(duration: 0.3)) {
                 swipeProgress = newTab == .yourEntries ? 0 : 1
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .didUnlockWithPIN)) { notification in
+            // Pass the PIN to EntryViewModel for encryption operations
+            if let pin = notification.userInfo?["pin"] as? String {
+                entryViewModel.setSessionPIN(pin)
+            }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            // Clear session PIN when app goes to background (locks)
+            if newPhase == .background || newPhase == .inactive {
+                entryViewModel.clearSessionPIN()
             }
         }
     }

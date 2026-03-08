@@ -65,7 +65,8 @@ public struct YourNameView: View {
                 .padding(.bottom, 32)
             }
         }
-        .navigationBarHidden(true)
+        .navigationBarBackButtonHidden(true)
+        .toolbar(.hidden, for: .navigationBar)
         .onAppear {
             if !didPreFill {
                 didPreFill = true
@@ -98,19 +99,17 @@ public struct YourNameView: View {
 
             // Header content
             HStack(alignment: .center, spacing: 12) {
-                // Back button (hidden on first step)
-                if !isFirstStep {
-                    IconButtonNav(
-                        icon: "chevron.left",
-                        iconSize: 20,
-                        buttonSize: 40,
-                        foregroundColor: theme.foreground,
-                        useDarkBackground: false,
-                        enableHaptic: true,
-                        onTap: { onBack?() ?? dismiss() }
-                    )
-                    .accessibilityLabel("Back")
-                }
+                // Back button
+                IconButtonNav(
+                    icon: "chevron.left",
+                    iconSize: 20,
+                    buttonSize: 40,
+                    foregroundColor: theme.foreground,
+                    useDarkBackground: false,
+                    enableHaptic: true,
+                    onTap: { onBack?() ?? dismiss() }
+                )
+                .accessibilityLabel("Back")
 
                 Spacer()
 
