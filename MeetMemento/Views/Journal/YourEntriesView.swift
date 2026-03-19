@@ -17,6 +17,7 @@ struct YourEntriesView: View {
     private let scrollThreshold: CGFloat = 50
 
     let monthGroups: [MonthGroup]
+    let topContentPadding: CGFloat  // Padding for floating header clearance
     let onMonthVisibilityChanged: ((Date) -> Void)?
     let onNavigateToEntry: (EntryRoute) -> Void
 
@@ -27,11 +28,13 @@ struct YourEntriesView: View {
     init(
         entryViewModel: EntryViewModel,
         monthGroups: [MonthGroup],
+        topContentPadding: CGFloat = 0,
         onMonthVisibilityChanged: ((Date) -> Void)? = nil,
         onNavigateToEntry: @escaping (EntryRoute) -> Void
     ) {
         self.entryViewModel = entryViewModel
         self.monthGroups = monthGroups
+        self.topContentPadding = topContentPadding
         self.onMonthVisibilityChanged = onMonthVisibilityChanged
         self.onNavigateToEntry = onNavigateToEntry
     }
@@ -53,6 +56,8 @@ struct YourEntriesView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(theme.background.ignoresSafeArea())
+        .ignoresSafeArea()
         .confirmationDialog(
             "Delete this entry?",
             isPresented: $showDeleteConfirmation,
@@ -92,7 +97,7 @@ struct YourEntriesView: View {
             Text("Failed to load entries")
                 .font(type.h3)
                 .fontWeight(.semibold)
-                .foregroundStyle(GrayScale.gray900)
+                .foregroundStyle(theme.foreground)
             Text(message)
                 .font(type.body1)
                 .foregroundStyle(theme.mutedForeground)
@@ -118,7 +123,7 @@ struct YourEntriesView: View {
 
             Text("No journal entries yet")
                 .font(type.h3)
-                .foregroundStyle(GrayScale.gray900)
+                .foregroundStyle(theme.foreground)
                 .padding(.top, 16)
 
             Text("Start writing your first entry to see it here.")
@@ -201,7 +206,7 @@ struct YourEntriesView: View {
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.top, 16) // 16px base padding (header adds 16px more = 32px total)
+            .padding(.top, topContentPadding + 32) // Dynamic header clearance + 32px gap
             .padding(.bottom, 20) // Bottom padding for scrolling
             .background(
                 GeometryReader { geometry in
@@ -214,6 +219,8 @@ struct YourEntriesView: View {
             )
         }
         .coordinateSpace(name: "scroll")
+        .scrollContentBackground(.hidden)
+        .background(theme.background)
         .onPreferenceChange(ScrollOffsetPreferenceKey.self) { value in
             // Only apply tracking on iOS 18, not iOS 26+
             if #available(iOS 26.0, *) {

@@ -30,6 +30,7 @@ public struct JournalView: View {
     @EnvironmentObject var entryViewModel: EntryViewModel
     @EnvironmentObject var authViewModel: AuthViewModel
 
+    @StateObject private var chatViewModel = ChatViewModel()
     @State private var internalNavigationPath = NavigationPath()
 
     // Month picker state
@@ -89,7 +90,7 @@ public struct JournalView: View {
         return Array(Set(monthsForYear)).sorted()
     }
 
-    /// Dynamic inset for floating header (safe area top + header height + padding)
+    /// Dynamic inset for floating header
     private var topHeaderInset: CGFloat {
         let safeAreaTop = UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
@@ -97,8 +98,9 @@ public struct JournalView: View {
             .windows
             .first { $0.isKeyWindow }?
             .safeAreaInsets.top ?? 0
-        // Header height (44) + vertical padding (8+8) + extra clearance (8)
-        return safeAreaTop + 68
+        // TopNavHeader positioned at safeAreaTop + 8 with height 44px
+        // Content starts at header bottom; 32px gap added by YourEntriesView padding
+        return safeAreaTop + 8 + 44  // = safeAreaTop + 52
     }
 
     public init(isEmbedded: Bool = false, externalNavigationPath: Binding<NavigationPath> = .constant(NavigationPath())) {
@@ -164,7 +166,7 @@ public struct JournalView: View {
                     .navigationDestination(for: AIChatRoute.self) { route in
                         switch route {
                         case .main:
-                            AIChatView()
+                            AIChatView(viewModel: chatViewModel)
                                 .toolbar(.hidden, for: .tabBar)
                                 .environment(\.fabVisible, false)
                         }
@@ -186,35 +188,39 @@ public struct JournalView: View {
 
     @ViewBuilder
     private var coreContentView: some View {
-        YourEntriesView(
-                entryViewModel: entryViewModel,
-                monthGroups: filteredEntriesByMonth,
-                onMonthVisibilityChanged: { monthStart in
-                    // Sync scroll position with picker selection
-                    selectedDate = monthStart
-                    selectedMonth = Calendar.current.component(.month, from: monthStart)
-                    selectedYear = Calendar.current.component(.year, from: monthStart)
-                    visibleMonthStart = monthStart
-                },
-                onNavigateToEntry: { route in
-                    navigationPath.wrappedValue.append(route)
+        ZStack {
+            // Full-screen background - must fill entire space including safe areas
+            theme.background
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .ignoresSafeArea(edges: .all)
+
+            YourEntriesView(
+                    entryViewModel: entryViewModel,
+                    monthGroups: filteredEntriesByMonth,
+                    topContentPadding: isEmbedded ? topHeaderInset : 0,
+                    onMonthVisibilityChanged: { monthStart in
+                        // Sync scroll position with picker selection
+                        selectedDate = monthStart
+                        selectedMonth = Calendar.current.component(.month, from: monthStart)
+                        selectedYear = Calendar.current.component(.year, from: monthStart)
+                        visibleMonthStart = monthStart
+                    },
+                    onNavigateToEntry: { route in
+                        navigationPath.wrappedValue.append(route)
+                    }
+                )
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    if isEmbedded {
+                        // Spacer for FAB clearance
+                        Color.clear.frame(height: 100)
+                    }
                 }
-            )
-            // Use safeAreaInset for proper scroll content insets when embedded
-            .safeAreaInset(edge: .top, spacing: 0) {
-                if isEmbedded {
-                    // Spacer for floating header clearance (safe area + header height)
-                    Color.clear.frame(height: topHeaderInset)
-                }
-            }
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                if isEmbedded {
-                    // Spacer for FAB clearance
-                    Color.clear.frame(height: 100)
-                }
-            }
-            .background(theme.background.ignoresSafeArea())
-            .toolbar {
+
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .ignoresSafeArea(edges: .all)
+        .background(theme.background.ignoresSafeArea(edges: .all))
+        .toolbar {
                 // Only show toolbar when NOT embedded (embedded uses TopNavHeader)
                 if !isEmbedded {
                     // Leading: Hamburger menu (placeholder for future features)

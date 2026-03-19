@@ -122,7 +122,13 @@ public struct ContentView: View {
     /// Consolidated navigation path for all routes
     @State private var navigationPath = NavigationPath()
 
+    // MARK: - Drawer State
+    @State private var isDrawerOpen = false
+    @State private var drawerDragOffset: CGFloat = 0
+    private let drawerWidth: CGFloat = DrawerMenuView.drawerWidth
+
     @StateObject private var defaultEntryViewModel = EntryViewModel()
+    @StateObject private var chatViewModel = ChatViewModel()
     @Environment(\.previewEntryViewModel) private var previewEntryViewModel: EntryViewModel?
     @Environment(\.previewInitialTab) private var previewInitialTab: JournalTopTab?
 
@@ -139,67 +145,145 @@ public struct ContentView: View {
     public init() {}
 
     public var body: some View {
-        NavigationStack(path: $navigationPath) {
-            ZStack(alignment: .top) {
-                // Main content with swipeable tabs
-                // Note: Views handle their own top padding when isEmbedded == true
-                TopTabNavContainer(selection: $selectedTab, swipeProgress: $swipeProgress, showTopNav: false) { tab in
-                    switch tab {
-                    case .yourEntries:
-                        JournalView(isEmbedded: true, externalNavigationPath: $navigationPath)
-                    case .digDeeper:
-                        AIChatView(isEmbedded: true)
-                    }
-                }
+        ZStack(alignment: .leading) {
+            // Layer 0: Full-screen background that extends to all edges
+            theme.background
+                .ignoresSafeArea()
 
-                // Floating header
-                VStack {
-                    TopNavHeader(
-                        selection: $selectedTab,
-                        onMenuTapped: {
-                            // Navigate to settings (or future menu)
-                            navigationPath.append(SettingsRoute.main)
-                        },
-                        onActionTapped: {
-                            // Context-aware action: search for Journal, new entry for Insights
-                            if selectedTab == .yourEntries {
-                                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                                    showJournalSearch = true
-                                }
-                            } else {
-                                // Create new journal entry from Insights tab
-                                navigationPath.append(EntryRoute.create)
-                            }
+            // Layer 1: Drawer menu (behind main content)
+            DrawerMenuView(
+                onAboutYourselfTapped: {
+                    navigationPath.append(DrawerRoute.aboutYourself)
+                },
+                onJournalGoalsTapped: {
+                    navigationPath.append(DrawerRoute.journalGoals)
+                },
+                onSettingsTapped: {
+                    navigationPath.append(SettingsRoute.main)
+                },
+                onClose: {
+                    closeDrawer()
+                },
+                onSwipeClose: { offset in
+                    // Update drag offset for interactive closing
+                    drawerDragOffset = offset
+                },
+                onSwipeEnd: { velocity in
+                    // Close drawer when swipe ends past threshold
+                    closeDrawer()
+                }
+            )
+            .offset(x: isDrawerOpen ? 0 : -drawerWidth)
+
+            // Tap-to-close overlay (only when drawer is open)
+            if isDrawerOpen {
+                Color.black.opacity(0.001) // Nearly invisible but captures taps
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        closeDrawer()
+                    }
+                    .offset(x: drawerWidth) // Position it over the main content area
+            }
+
+            // Layer 2: Main content (slides right when drawer opens)
+            NavigationStack(path: $navigationPath) {
+                ZStack(alignment: .top) {
+                    // Full-screen background that extends to all edges
+                    theme.background
+                        .ignoresSafeArea()
+
+                    // Main content with swipeable tabs
+                    // Note: Views handle their own top padding when isEmbedded == true
+                    TopTabNavContainer(selection: $selectedTab, swipeProgress: $swipeProgress, showTopNav: false) { tab in
+                        switch tab {
+                        case .yourEntries:
+                            JournalView(isEmbedded: true, externalNavigationPath: $navigationPath)
+                        case .digDeeper:
+                            AIChatView(viewModel: chatViewModel, isEmbedded: true)
                         }
-                    )
-                    .padding(.top, safeAreaTop + 8)
-                    Spacer()
-                }
-
-                // FAB - Journal tab only, creates new entry
-                // Animates interactively with swipe progress
-                // Hidden completely when swipe progress > 95% to prevent lingering
-                if showAccessory && swipeProgress < 0.95 {
-                    PositionedNewEntryFAB(swipeProgress: swipeProgress) {
-                        navigationPath.append(EntryRoute.create)
                     }
+
+                    // Gradient blur overlays - at ContentView level to extend to absolute screen edges
+                    // Note: Bottom fade is hidden on Insights tab so ChatInputField stays above the blur
+                    VStack(spacing: 0) {
+                        ScrollEdgeFade(edge: .top, height: 80 + safeAreaTop)
+                        Spacer()
+                        if selectedTab == .yourEntries {
+                            ScrollEdgeFade(edge: .bottom, height: 120)
+                        }
+                    }
+                    .padding(.top, -safeAreaTop)
+                    .ignoresSafeArea()
+
+                    // Floating header
+                    VStack {
+                        TopNavHeader(
+                            selection: $selectedTab,
+                            onMenuTapped: {
+                                // Toggle drawer
+                                if isDrawerOpen {
+                                    closeDrawer()
+                                } else {
+                                    openDrawer()
+                                }
+                            },
+                            onActionTapped: {
+                                // Context-aware action: search for Journal, new entry for Insights
+                                if selectedTab == .yourEntries {
+                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                                        showJournalSearch = true
+                                    }
+                                } else {
+                                    // Create new journal entry from Insights tab
+                                    navigationPath.append(EntryRoute.create)
+                                }
+                            }
+                        )
+                        .padding(.top, safeAreaTop + 8)
+                        Spacer()
+                    }
+
+                    // FAB - Journal tab only, creates new entry
+                    // Animates interactively with swipe progress
+                    // Hidden completely when swipe progress > 95% to prevent lingering
+                    // Hidden when no entries exist (empty state has its own CTA button)
+                    if showAccessory && swipeProgress < 0.95 && !entryViewModel.entries.isEmpty {
+                        PositionedNewEntryFAB(swipeProgress: swipeProgress) {
+                            navigationPath.append(EntryRoute.create)
+                        }
+                    }
+                }
+                .ignoresSafeArea(edges: .all)
+                .toolbar(.hidden, for: .navigationBar)
+                .navigationBarHidden(true)
+                .overlay {
+                    if showJournalSearch {
+                        JournalSearchView(isPresented: $showJournalSearch, navigationPath: $navigationPath)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                            .zIndex(100)
+                    }
+                }
+                .navigationDestination(for: EntryRoute.self) { route in
+                    entryDestination(for: route)
+                }
+                .navigationDestination(for: SettingsRoute.self) { route in
+                    settingsDestination(for: route)
+                }
+                .navigationDestination(for: DrawerRoute.self) { route in
+                    drawerDestination(for: route)
                 }
             }
             .ignoresSafeArea(edges: .all)
-            .overlay {
-                if showJournalSearch {
-                    JournalSearchView(isPresented: $showJournalSearch, navigationPath: $navigationPath)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                        .zIndex(100)
-                }
-            }
-            .navigationDestination(for: EntryRoute.self) { route in
-                entryDestination(for: route)
-            }
-            .navigationDestination(for: SettingsRoute.self) { route in
-                settingsDestination(for: route)
-            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(theme.background.ignoresSafeArea())
+            .clipShape(RoundedRectangle(cornerRadius: isDrawerOpen || drawerDragOffset > 0 ? 32 : 0))
+            .shadow(color: .black.opacity(isDrawerOpen || drawerDragOffset > 0 ? 0.15 : 0), radius: 20, x: -5, y: 0)
+            .offset(x: mainContentOffset)
+            .disabled(isDrawerOpen)
+            .gesture(edgeSwipeGesture)
+            .ignoresSafeArea(edges: .all)
         }
+        .ignoresSafeArea(edges: .all)
         .environmentObject(entryViewModel)
         .environment(\.selectedTab, $selectedTab)
         .environment(\.tabBarHidden, $isTabBarHidden)
@@ -218,6 +302,15 @@ public struct ContentView: View {
             // Sync swipeProgress when tab changes via pill tap (fallback for geometry tracking)
             withAnimation(.smooth(duration: 0.3)) {
                 swipeProgress = newTab == .yourEntries ? 0 : 1
+            }
+        }
+        .onChange(of: navigationPath) { _, _ in
+            // Close drawer when any navigation occurs
+            if isDrawerOpen {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                    isDrawerOpen = false
+                    drawerDragOffset = 0
+                }
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .didUnlockWithPIN)) { notification in
@@ -243,6 +336,72 @@ public struct ContentView: View {
             .windows
             .first { $0.isKeyWindow }?
             .safeAreaInsets.top ?? 0
+    }
+
+    // MARK: - Drawer Helpers
+
+    /// Calculated offset for main content based on drawer state and drag
+    private var mainContentOffset: CGFloat {
+        if isDrawerOpen {
+            // When drawer is open, offset by drawer width + any close-swipe offset
+            return max(0, drawerWidth + drawerDragOffset)
+        } else {
+            // When drawer is closed, use the open-swipe drag offset
+            return max(0, drawerDragOffset)
+        }
+    }
+
+    /// Edge swipe gesture to open drawer
+    private var edgeSwipeGesture: some Gesture {
+        DragGesture(minimumDistance: 20, coordinateSpace: .global)
+            .onChanged { value in
+                // Only activate from left 40pt edge when drawer is closed
+                if !isDrawerOpen && value.startLocation.x < 40 && value.translation.width > 0 {
+                    drawerDragOffset = min(value.translation.width, drawerWidth)
+                }
+                // Allow swipe to close when drawer is open
+                else if isDrawerOpen && value.translation.width < 0 {
+                    drawerDragOffset = max(value.translation.width, -drawerWidth)
+                }
+            }
+            .onEnded { value in
+                let threshold = drawerWidth * 0.4
+
+                if !isDrawerOpen {
+                    // Opening gesture
+                    if drawerDragOffset > threshold || value.velocity.width > 500 {
+                        openDrawer()
+                    } else {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                            drawerDragOffset = 0
+                        }
+                    }
+                } else {
+                    // Closing gesture
+                    if drawerDragOffset < -threshold || value.velocity.width < -500 {
+                        closeDrawer()
+                    } else {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                            drawerDragOffset = 0
+                        }
+                    }
+                }
+            }
+    }
+
+    private func openDrawer() {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+            isDrawerOpen = true
+            drawerDragOffset = 0
+        }
+    }
+
+    private func closeDrawer() {
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+            isDrawerOpen = false
+            drawerDragOffset = 0
+        }
     }
 
     // MARK: - Navigation Destinations
@@ -296,6 +455,20 @@ public struct ContentView: View {
                 .environment(\.fabVisible, false)
         case .about:
             AboutSettingsView()
+                .toolbar(.hidden, for: .tabBar)
+                .environment(\.fabVisible, false)
+        }
+    }
+
+    @ViewBuilder
+    private func drawerDestination(for route: DrawerRoute) -> some View {
+        switch route {
+        case .aboutYourself:
+            EditAboutYourselfView()
+                .toolbar(.hidden, for: .tabBar)
+                .environment(\.fabVisible, false)
+        case .journalGoals:
+            EditJournalGoalsView()
                 .toolbar(.hidden, for: .tabBar)
                 .environment(\.fabVisible, false)
         }
