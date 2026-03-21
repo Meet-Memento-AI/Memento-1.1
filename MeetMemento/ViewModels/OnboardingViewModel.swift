@@ -51,7 +51,11 @@ class OnboardingViewModel: ObservableObject {
     }
 
     func completeOnboarding() async throws {
-        // TODO: Mark onboarding as complete in Supabase user profile
-        // Stub: No-op for boilerplate
+        #if !DISABLE_SUPABASE
+        try await UserContextService.shared.saveOnboardingContext(
+            onboardingSelfReflection: personalizationText.isEmpty ? nil : personalizationText,
+            selectedGoals: selectedGoals.isEmpty ? nil : selectedGoals
+        )
+        #endif
     }
 }

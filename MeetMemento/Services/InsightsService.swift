@@ -16,10 +16,17 @@ private struct GenerateInsightsRequest: Codable {
     let entries: [JournalEntryPayload]
 }
 
+/// Personalization for system prompt (LearnAboutYourselfView + YourGoalsView)
+private struct SystemPromptContextPayload: Codable {
+    let onboardingSelfReflection: String?
+    let selectedGoals: [String]?
+}
+
 /// Request body for chat-with-entries Edge Function
 private struct ChatRequest: Codable {
     let messages: [ChatMessagePayload]
     let entries: [JournalEntryPayload]
+    let systemPromptContext: SystemPromptContextPayload?
 }
 
 private struct ChatMessagePayload: Codable {
@@ -186,7 +193,11 @@ class InsightsService {
 
 
     /// Sends a chat message history + context entries to the AI and returns the response.
-    func chat(messages: [ChatMessage], entries: [Entry]) async throws -> AIOutputContent {
+    /// - Parameters:
+    ///   - messages: Chat message history (user + assistant)
+    ///   - entries: Journal entries to use as context for grounding
+    ///   - userContext: Optional onboarding data to personalize the system prompt (LearnAboutYourselfView + YourGoalsView)
+    func chat(messages: [ChatMessage], entries: [Entry], userContext: UserContext? = nil) async throws -> AIOutputContent {
         #if DEBUG
         print("💬 [InsightsService] Sending chat with \(entries.count) entries context")
         #endif
@@ -207,7 +218,21 @@ class InsightsService {
             )
         }
 
-        let requestBody = ChatRequest(messages: payloadMessages, entries: payloadEntries)
+        let systemContext: SystemPromptContextPayload?
+        if let ctx = userContext?.systemPromptContext {
+            systemContext = SystemPromptContextPayload(
+                onboardingSelfReflection: ctx.onboardingSelfReflection,
+                selectedGoals: ctx.selectedGoals.isEmpty ? nil : ctx.selectedGoals
+            )
+        } else {
+            systemContext = nil
+        }
+
+        let requestBody = ChatRequest(
+            messages: payloadMessages,
+            entries: payloadEntries,
+            systemPromptContext: systemContext
+        )
 
         let content: AIOutputContent = try await client.functions.invoke(
             "chat-with-entries",

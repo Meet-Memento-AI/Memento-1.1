@@ -14,10 +14,14 @@ public struct AIChatView: View {
     @Environment(\.theme) private var theme
     @Environment(\.typography) private var type
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var entryViewModel: EntryViewModel
 
     @State private var messages: [ChatMessage] = []
     @State private var inputText: String = ""
     @State private var isSending: Bool = false
+    @State private var userContext: UserContext?
+    @State private var chatError: String?
+    @State private var showChatError = false
 
     // Memory optimization: cap message history to prevent unbounded growth
     private let maxMessagesInMemory = 100
@@ -87,6 +91,11 @@ public struct AIChatView: View {
         .toolbarBackground(.hidden, for: .navigationBar)
         .onAppear {
             loadInitialState()
+        }
+        .alert("Chat Error", isPresented: $showChatError) {
+            Button("OK") { showChatError = false }
+        } message: {
+            Text(chatError ?? "Something went wrong. Please try again.")
         }
         .onDisappear {
             scrollTask?.cancel()
@@ -273,10 +282,17 @@ public struct AIChatView: View {
     }
     
     private func loadInitialState() {
-        // Mock initial messages for UI preview (remove when backend is ready)
-        // For now, start with empty state
         messages = []
-        reviewedJournalCount = 5 // Mock data
+        reviewedJournalCount = max(1, entryViewModel.entries.count)
+        Task {
+            do {
+                userContext = try await UserContextService.shared.fetchUserContext()
+            } catch {
+                #if DEBUG
+                print("AIChatView: Failed to fetch UserContext: \(error)")
+                #endif
+            }
+        }
     }
     
     private func sendMessage(prompt: String? = nil) {
@@ -288,56 +304,56 @@ public struct AIChatView: View {
         }
         guard !text.isEmpty, !isSending else { return }
 
-        // Add user message with memory limit enforcement
-        let userMessage = ChatMessage(
-            content: text,
-            isFromUser: true
-        )
+        let userMessage = ChatMessage(content: text, isFromUser: true)
         addMessage(userMessage)
 
         if prompt == nil {
             inputText = ""
         }
 
-        // Simulate AI response (remove when backend is ready)
-        withAnimation {
-            isSending = true
-        }
+        withAnimation { isSending = true }
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
 
-        // Simulate delay for AI response
         Task {
-            try? await Task.sleep(nanoseconds: 2_000_000_000) // 2.0 seconds
-            
+            #if DISABLE_SUPABASE
+            // UI/testing mode: use mock response
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
             await MainActor.run {
-                // Mock AI response with structured content (replace with actual API call)
-                let mockCitations: [JournalCitation]? = [
-                    JournalCitation(
-                        entryId: UUID(),
-                        entryTitle: "Reflection on Balance",
-                        entryDate: Date().addingTimeInterval(-86400 * 2),
-                        excerpt: "I notice that when I take time to pause in the morning, my entire day feels more structured and less chaotic."
-                    ),
-                    JournalCitation(
-                        entryId: UUID(),
-                        entryTitle: "Work Stress",
-                        entryDate: Date().addingTimeInterval(-86400 * 5),
-                        excerpt: "Deadlines are piling up and I feel the pressure mounting. Need to find a way to disconnect."
-                    )
-                ]
-                
                 let aiResponse = ChatMessage.aiMessage(
                     heading1: "Patterns in Your Resilience",
                     heading2: "Key Observations",
-                    body: "I've analyzed your recent journal entries and found some interesting connections. **Mindfulness seems to be a key driver** for your productivity.\n\nWhen you mention *taking morning pauses*, your subsequent entries tend to be more positive and focused. Conversely, days without this routine often correlate with higher reported stress levels regarding deadlines.\n\nHere is a breakdown of what I found:\n1. **Morning Routine**: Highly effective for mood regulation.\n2. **Workload Management**: Needs more separation from personal time.\n\nConsider trying to maintain that morning pause even on successful days.",
-                    citations: mockCitations
+                    body: "I've analyzed your recent journal entries and found some interesting connections. **Mindfulness seems to be a key driver** for your productivity.\n\nWhen you mention *taking morning pauses*, your subsequent entries tend to be more positive and focused.",
+                    citations: nil
                 )
-                
-                withAnimation {
-                    isSending = false
+                withAnimation { isSending = false }
+                addMessage(aiResponse)
+            }
+            #else
+            do {
+                let entries = entryViewModel.entries.filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                let content = try await InsightsService.shared.chat(
+                    messages: messages,
+                    entries: entries.isEmpty ? Entry.sampleEntries : entries,
+                    userContext: userContext
+                )
+                let aiResponse = ChatMessage.aiMessage(
+                    heading1: content.heading1,
+                    heading2: content.heading2,
+                    body: content.body,
+                    citations: nil
+                )
+                await MainActor.run {
+                    withAnimation { isSending = false }
                     addMessage(aiResponse)
                 }
+            } catch {
+                await MainActor.run {
+                    withAnimation { isSending = false }
+                    chatError = error.localizedDescription
+                    showChatError = true
+                }
             }
+            #endif
         }
     }
 
@@ -386,6 +402,7 @@ public struct AIChatView: View {
 #Preview("Empty State") {
     NavigationStack {
         AIChatView()
+            .environmentObject(EntryViewModel())
     }
     .useTheme()
     .useTypography()
@@ -394,9 +411,7 @@ public struct AIChatView: View {
 #Preview("With Messages") {
     NavigationStack {
         AIChatView()
-            .onAppear {
-                // Mock messages for preview
-            }
+            .environmentObject(EntryViewModel())
     }
     .useTheme()
     .useTypography()
@@ -419,6 +434,7 @@ public struct AIChatView: View {
 #Preview("Dark Mode") {
     NavigationStack {
         AIChatView()
+            .environmentObject(EntryViewModel())
     }
     .useTheme()
     .useTypography()
