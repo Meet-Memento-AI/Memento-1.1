@@ -6,6 +6,7 @@ import Foundation
 public struct UserContext: Codable, Hashable {
     public let userId: UUID
     public var onboardingSelfReflection: String?
+    public var selectedGoals: [String]?
     public var identifiedThemes: [String]?
     public var themeSelectionCount: Int?
     public var themesAnalyzedAt: Date?
@@ -15,6 +16,7 @@ public struct UserContext: Codable, Hashable {
     enum CodingKeys: String, CodingKey {
         case userId = "user_id"
         case onboardingSelfReflection = "onboarding_self_reflection"
+        case selectedGoals = "selected_goals"
         case identifiedThemes = "identified_themes"
         case themeSelectionCount = "theme_selection_count"
         case themesAnalyzedAt = "themes_analyzed_at"
@@ -25,6 +27,7 @@ public struct UserContext: Codable, Hashable {
     public init(
         userId: UUID,
         onboardingSelfReflection: String? = nil,
+        selectedGoals: [String]? = nil,
         identifiedThemes: [String]? = nil,
         themeSelectionCount: Int? = 0,
         themesAnalyzedAt: Date? = nil,
@@ -33,11 +36,22 @@ public struct UserContext: Codable, Hashable {
     ) {
         self.userId = userId
         self.onboardingSelfReflection = onboardingSelfReflection
+        self.selectedGoals = selectedGoals
         self.identifiedThemes = identifiedThemes
         self.themeSelectionCount = themeSelectionCount
         self.themesAnalyzedAt = themesAnalyzedAt
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+    }
+
+    /// Context for system prompt personalization (LearnAboutYourselfView + YourGoalsView)
+    public var systemPromptContext: (onboardingSelfReflection: String?, selectedGoals: [String])? {
+        let reflection = onboardingSelfReflection?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let goals = selectedGoals ?? []
+        if reflection != nil || !goals.isEmpty {
+            return (reflection, goals)
+        }
+        return nil
     }
 }
 
@@ -46,6 +60,7 @@ extension UserContext {
     public static let mock = UserContext(
         userId: UUID(),
         onboardingSelfReflection: "I want to stress less.",
+        selectedGoals: ["Self awareness", "Stress relief"],
         identifiedThemes: ["anxiety", "work"],
         themeSelectionCount: 2
     )
