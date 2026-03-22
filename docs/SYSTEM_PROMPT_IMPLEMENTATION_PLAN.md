@@ -272,6 +272,16 @@ The chat-with-entries function uses **Google Gemini** with explicit context cach
 
 See `docs/GEMINI_CONTEXT_CACHING_PLAN.md` for full architecture.
 
+## System Prompt as .md File (Added)
+
+The base prompt and personalization template are stored in `supabase/functions/chat-with-entries/system_prompt.md`:
+
+- **Base prompt**: Content before `<!-- PERSONALIZATION_TEMPLATE -->`
+- **Placeholders**: `{{onboarding_reflection}}`, `{{selected_goals}}`
+- **Conditional blocks**: `ONBOARDING_REFLECTION_BLOCK` and `SELECTED_GOALS_BLOCK` are included only when the user has that data
+
+See `docs/SYSTEM_PROMPT_FILE_PLAN.md` for the editing workflow.
+
 ---
 
 ## Appendix: YourGoalsView Goals vs themes Table

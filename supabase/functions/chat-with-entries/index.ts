@@ -38,10 +38,18 @@ const MAX_ENTRIES = 30;
 const MAX_CONTENT_LENGTH = 600;
 
 // ============================================================
-// BASE MEMENTO SYSTEM PROMPT (from MEM-22)
+// SYSTEM PROMPT LOADER (from system_prompt.md)
 // ============================================================
 
-const BASE_SYSTEM_PROMPT = `You are Memento, a journaling companion. You help users explore their journal entries to discover patterns and understand themselves.
+interface ParsedPrompt {
+  base: string;
+  onboardingBlock: string;
+  goalsBlock: string;
+}
+
+let cachedPrompt: ParsedPrompt | null = null;
+
+const FALLBACK_BASE_PROMPT = `You are Memento, a journaling companion. You help users explore their journal entries to discover patterns and understand themselves.
 
 ROLE: You are a mirror, not a therapist. Users are experts on their own lives. You reflect what you see in their entries and ask questions that help them find their own insights.
 
@@ -79,35 +87,62 @@ CONCERNING PATTERNS: If entries show repeated hopelessness, self-harm references
 
 Every response should leave the user feeling heard, curious about themselves, and glad they journaled.`;
 
-// ============================================================
-// PERSONALIZATION HELPERS
-// ============================================================
+async function loadSystemPrompt(): Promise<ParsedPrompt> {
+  if (cachedPrompt) return cachedPrompt;
 
-function buildPersonalizationSection(ctx?: SystemPromptContext): string {
-  if (!ctx || (!ctx.onboardingSelfReflection?.trim() && !(ctx.selectedGoals?.length))) {
-    return '';
+  try {
+    const url = new URL('./system_prompt.md', import.meta.url);
+    const raw = await Deno.readTextFile(url);
+    const [basePart, templatePart] = raw.split('<!-- PERSONALIZATION_TEMPLATE -->').map(s => s.trim());
+    const base = (basePart ?? '').replace(/^#\s+Memento\s+System\s+Prompt\s*\n?/i, '').trim() || FALLBACK_BASE_PROMPT;
+
+    const extractBlock = (content: string, start: string, end: string): string => {
+      if (!content) return '';
+      const s = content.indexOf(start);
+      const e = content.indexOf(end);
+      if (s === -1 || e === -1) return '';
+      return content.slice(s + start.length, e).trim();
+    };
+
+    cachedPrompt = {
+      base: base || FALLBACK_BASE_PROMPT,
+      onboardingBlock: extractBlock(
+        templatePart ?? '',
+        '<!-- ONBOARDING_REFLECTION_BLOCK -->',
+        '<!-- END_ONBOARDING_REFLECTION_BLOCK -->'
+      ),
+      goalsBlock: extractBlock(
+        templatePart ?? '',
+        '<!-- SELECTED_GOALS_BLOCK -->',
+        '<!-- END_SELECTED_GOALS_BLOCK -->'
+      )
+    };
+    return cachedPrompt;
+  } catch (err) {
+    console.warn('Failed to load system_prompt.md, using fallback:', err);
+    cachedPrompt = {
+      base: FALLBACK_BASE_PROMPT,
+      onboardingBlock: 'PERSONALIZATION (from user\'s onboarding):\nThe user shared during onboarding: "{{onboarding_reflection}}"\nUse this to guide your attention when exploring their entries.',
+      goalsBlock: 'JOURNALING GOALS (user-selected themes to explore):\nThe user chose to focus on: {{selected_goals}}\nWhen relevant, connect insights to these goals.'
+    };
+    return cachedPrompt;
   }
-  const parts: string[] = [];
-  if (ctx.onboardingSelfReflection?.trim()) {
-    const escaped = ctx.onboardingSelfReflection.trim().replace(/"/g, '\\"');
-    parts.push(`PERSONALIZATION (from user's onboarding):
-The user shared during onboarding: "${escaped}"
-Use this to guide your attention when exploring their entries. Pay special notice to themes, goals, or questions they expressed wanting to explore. Reference this naturally when relevant.`);
-  }
-  if (ctx.selectedGoals?.length) {
-    const goals = ctx.selectedGoals.map(g => g.trim()).filter(Boolean);
-    if (goals.length) {
-      parts.push(`JOURNALING GOALS (user-selected themes to explore):
-The user chose to focus on: ${goals.join(', ')}
-When relevant, connect insights to these goals. Don't force every response to touch on all of them; use them as a lens for what might matter most to the user.`);
-    }
-  }
-  if (parts.length === 0) return '';
-  return `\n\n---\n${parts.join('\n\n')}`;
 }
 
-function buildSystemPrompt(ctx?: SystemPromptContext): string {
-  return BASE_SYSTEM_PROMPT + buildPersonalizationSection(ctx);
+function buildSystemPrompt(ctx: SystemPromptContext | undefined, parsed: ParsedPrompt): string {
+  const reflection = ctx?.onboardingSelfReflection?.trim();
+  const goals = ctx?.selectedGoals?.map(g => g.trim()).filter(Boolean) ?? [];
+
+  const parts: string[] = [];
+  if (reflection && parsed.onboardingBlock) {
+    parts.push(parsed.onboardingBlock.replace(/\{\{onboarding_reflection\}\}/g, reflection));
+  }
+  if (goals.length && parsed.goalsBlock) {
+    parts.push(parsed.goalsBlock.replace(/\{\{selected_goals\}\}/g, goals.join(', ')));
+  }
+
+  if (parts.length === 0) return parsed.base;
+  return `${parsed.base}\n\n---\n${parts.join('\n\n')}`;
 }
 
 // ============================================================
@@ -123,17 +158,28 @@ function formatEntriesForContext(entries: JournalEntryPayload[]): string {
   return JSON.stringify(truncated, null, 2);
 }
 
+async function sha256(input: string): Promise<string> {
+  const enc = new TextEncoder();
+  const data = enc.encode(input);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 /** Compute stable hash for cache key — entries must match exactly to reuse cache */
 async function computeEntriesHash(entries: JournalEntryPayload[]): Promise<string> {
   const canonical = entries
     .map(e => `${e.date}|${e.title || ''}|${e.content?.substring(0, 200) || ''}`)
     .sort()
     .join('\n');
-  const enc = new TextEncoder();
-  const data = enc.encode(canonical);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return sha256(canonical);
+}
+
+/** Compute hash of systemPromptContext — different personalization = different cache */
+function computeContextHash(ctx: SystemPromptContext | undefined): string {
+  const ref = ctx?.onboardingSelfReflection?.trim() ?? '';
+  const goals = (ctx?.selectedGoals ?? []).map(g => g.trim()).filter(Boolean).sort();
+  return ref + '|' + goals.join(',');
 }
 
 // ============================================================
@@ -311,9 +357,12 @@ serve(async (req) => {
         word_count: e.word_count ?? 0
       }));
 
-    const systemPrompt = buildSystemPrompt(systemPromptContext);
+    const parsed = await loadSystemPrompt();
+    const systemPrompt = buildSystemPrompt(systemPromptContext, parsed);
     const entriesText = formatEntriesForContext(validEntries);
     const entriesHash = await computeEntriesHash(validEntries);
+    const contextHash = computeContextHash(systemPromptContext);
+    const cacheKey = await sha256(entriesHash + '|' + contextHash);
 
     // Check for valid cache (Gemini context caching)
     const now = new Date().toISOString();
@@ -321,7 +370,7 @@ serve(async (req) => {
       .from('user_chat_caches')
       .select('cache_name')
       .eq('user_id', user.id)
-      .eq('entries_hash', entriesHash)
+      .eq('entries_hash', cacheKey)
       .gt('expires_at', now)
       .limit(1)
       .maybeSingle();
@@ -337,7 +386,7 @@ serve(async (req) => {
           {
             user_id: user.id,
             cache_name: cacheName,
-            entries_hash: entriesHash,
+            entries_hash: cacheKey,
             expires_at: expiresAt
           },
           { onConflict: 'user_id,entries_hash' }
