@@ -19,6 +19,7 @@ final class ChatViewModelTests: XCTestCase {
                 reply: "Assistant reply",
                 heading1: nil,
                 heading2: nil,
+                citedEntryIds: nil,
                 sources: [],
                 sessionId: sessionId.uuidString
             )

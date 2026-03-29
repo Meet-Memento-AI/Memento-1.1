@@ -3,12 +3,21 @@ import Supabase
 
 // MARK: - Response Types
 
+/// Decoded `chat` Edge Function JSON. `sources` may be empty when retrieval was skipped, no matches were found,
+/// or the model did not cite journal entries — the citations UI should treat an empty list as “no citations.”
 struct ChatResponse: Codable {
     let reply: String
     let heading1: String?
     let heading2: String?
+    /// Entry UUIDs the model cited; mirrors server `cited_entry_ids` (optional for backward compatibility).
+    let citedEntryIds: [String]?
     let sources: [ChatSource]
     let sessionId: String
+
+    enum CodingKeys: String, CodingKey {
+        case reply, heading1, heading2, sources, sessionId
+        case citedEntryIds = "cited_entry_ids"
+    }
 }
 
 struct ChatSource: Codable, Equatable {
@@ -171,7 +180,7 @@ class ChatService {
         }
 
         #if DEBUG
-        print("✅ [ChatService] Received reply (\(response.reply.count) chars), \(response.sources.count) sources, session: \(response.sessionId.prefix(8))...")
+        print("✅ [ChatService] Received reply (\(response.reply.count) chars), \(response.sources.count) sources, cited: \(response.citedEntryIds?.count ?? 0), session: \(response.sessionId.prefix(8))...")
         #endif
 
         return response

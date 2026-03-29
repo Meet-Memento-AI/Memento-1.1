@@ -31,6 +31,16 @@ final class ChatResponseDecodingTests: XCTestCase {
         let decoded = try JSONDecoder().decode(ChatResponse.self, from: try data(named: "chat_response_empty_sources"))
         XCTAssertEqual(decoded.sources.count, 0)
         XCTAssertEqual(decoded.reply, "Reply only.")
+        XCTAssertNil(decoded.citedEntryIds)
+    }
+
+    func test_decode_chatResponse_withCitedEntryIds() throws {
+        let json = """
+        {"reply":"r","heading1":null,"heading2":null,"cited_entry_ids":["660e8400-e29b-41d4-a716-446655440001"],"sources":[],"sessionId":"550e8400-e29b-41d4-a716-446655440000"}
+        """
+        let decoded = try JSONDecoder().decode(ChatResponse.self, from: Data(json.utf8))
+        XCTAssertEqual(decoded.citedEntryIds?.count, 1)
+        XCTAssertEqual(decoded.citedEntryIds?.first, "660e8400-e29b-41d4-a716-446655440001")
     }
 
     func test_decode_chatSource_snakeCaseCreatedAt() throws {

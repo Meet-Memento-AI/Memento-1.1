@@ -19,10 +19,16 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import {
   buildContextBlock,
   buildGeminiContents,
+  buildEffectiveQuery,
+  buildPreviewExcerpt,
   cleanParsedBody,
+  diversifyEntriesForContext,
   extractBody,
   extractGeminiResponseText,
+  filterCitedIdsToAllowed,
+  parseCitedEntryIds,
   sanitizeResponseBody,
+  shouldSkipJournalRetrieval,
   type MatchedEntry,
   type ChatMessageRow,
 } from './lib.ts';
@@ -52,11 +58,34 @@ const SYSTEM_PROMPT_PATH = new URL('./MEMENTO_SYSTEM_PROMPT.md', import.meta.url
 /** In-memory cache resource name for explicit context caching (see https://ai.google.dev/gemini-api/docs/caching). */
 let geminiSystemCacheName: string | null | undefined = undefined;
 
-const SYSTEM_PROMPT_FALLBACK = `You are Memento, a journaling companion. Help users explore their journal entries with warmth and curiosity. Respond with JSON only: {"heading1":null,"heading2":null,"body":"..."} where body contains your reply. Never fabricate journal content.`;
+const SYSTEM_PROMPT_FALLBACK = `You are Memento, a journaling companion. Help users explore their journal entries with warmth and curiosity. Respond with JSON only: {"heading1":null,"heading2":null,"body":"...","cited_entry_ids":[]} — use cited_entry_ids only for UUIDs from the journal context block, or []. Never fabricate journal content.`;
 
-const MATCH_COUNT = 5;
-const MATCH_THRESHOLD = 0.3;
-const HISTORY_LIMIT = 6;  // 3 conversation turns is sufficient with RAG context
+const HISTORY_LIMIT = 6; // 3 conversation turns is sufficient with RAG context
+
+function chatMatchCount(): number {
+  const n = parseInt(Deno.env.get('CHAT_MATCH_COUNT') ?? '5', 10);
+  return Number.isFinite(n) && n > 0 ? Math.min(n, 20) : 5;
+}
+
+function chatMatchThreshold(): number {
+  const n = parseFloat(Deno.env.get('CHAT_MATCH_THRESHOLD') ?? '0.35');
+  return Number.isFinite(n) && n > 0 && n < 1 ? n : 0.35;
+}
+
+function chatContextMaxEntries(): number {
+  const n = parseInt(Deno.env.get('CHAT_CONTEXT_MAX_ENTRIES') ?? '5', 10);
+  return Number.isFinite(n) && n > 0 ? Math.min(n, 15) : 5;
+}
+
+function chatMaxCitations(): number {
+  const n = parseInt(Deno.env.get('CHAT_MAX_CITATIONS') ?? '3', 10);
+  return Number.isFinite(n) && n >= 0 ? Math.min(n, 10) : 3;
+}
+
+function chatMinQueryLen(): number {
+  const n = parseInt(Deno.env.get('CHAT_MIN_QUERY_LEN') ?? '10', 10);
+  return Number.isFinite(n) && n >= 0 ? Math.min(n, 50) : 10;
+}
 
 // JSON schema for structured responses
 const RESPONSE_SCHEMA = {
@@ -64,9 +93,14 @@ const RESPONSE_SCHEMA = {
   properties: {
     heading1: { type: "string", nullable: true },
     heading2: { type: "string", nullable: true },
-    body: { type: "string" }
+    body: { type: "string" },
+    cited_entry_ids: {
+      type: "array",
+      items: { type: "string" },
+      nullable: true,
+    },
   },
-  required: ["body"]
+  required: ["body"],
 };
 
 let cachedSystemPromptText: string | null = null;
@@ -239,6 +273,8 @@ interface StructuredReply {
   heading1: string | null;
   heading2: string | null;
   body: string;
+  /** Journal entry UUIDs this reply draws on; only these become client `sources`. */
+  cited_entry_ids: string[];
 }
 
 // ============================================================
@@ -334,42 +370,7 @@ serve(async (req) => {
     }
 
     // ============================================================
-    // 5. EMBED THE USER'S QUESTION (skip for very short messages)
-    // ============================================================
-
-    const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
-    if (!geminiApiKey) {
-      throw new Error('GEMINI_API_KEY not configured');
-    }
-
-    let entries: MatchedEntry[] = [];
-
-    // Only embed and search for messages with enough content for meaningful RAG
-    if (userMessage.length >= 15) {
-      const queryEmbedding = await generateEmbedding(userMessage, geminiApiKey);
-
-      // PGVECTOR SIMILARITY SEARCH
-      const vectorLiteral = `[${queryEmbedding.join(',')}]`;
-
-      const { data: matchedEntries, error: rpcError } = await supabase.rpc('match_journal_entries', {
-        query_embedding: vectorLiteral,
-        match_user_id: user.id,
-        match_count: MATCH_COUNT,
-        match_threshold: MATCH_THRESHOLD,
-      });
-
-      if (rpcError) {
-        console.error('RPC error:', rpcError);
-      }
-
-      entries = matchedEntries ?? [];
-      console.log(`📚 Found ${entries.length} matching journal entries`);
-    } else {
-      console.log(`📝 Short message (${userMessage.length} chars) - skipping RAG`);
-    }
-
-    // ============================================================
-    // 7. LOAD CONVERSATION HISTORY (filtered by session)
+    // 5. LOAD CONVERSATION HISTORY (before retrieval — needed for effectiveQuery)
     // ============================================================
 
     const { data: historyRows } = await supabase
@@ -381,6 +382,46 @@ serve(async (req) => {
       .limit(HISTORY_LIMIT);
 
     const history: ChatMessageRow[] = historyRows ?? [];
+
+    const effectiveQuery = buildEffectiveQuery(userMessage, history);
+    const minQueryLen = chatMinQueryLen();
+    const skipRetrieval = shouldSkipJournalRetrieval(effectiveQuery, userMessage, minQueryLen);
+
+    // ============================================================
+    // 6. EMBED + RETRIEVE (strategic: effective query, thresholds, diversify)
+    // ============================================================
+
+    const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
+    if (!geminiApiKey) {
+      throw new Error('GEMINI_API_KEY not configured');
+    }
+
+    let entries: MatchedEntry[] = [];
+
+    if (!skipRetrieval) {
+      const embedMax = parseInt(Deno.env.get('CHAT_EMBED_MAX_CHARS') ?? '2000', 10);
+      const embedText = effectiveQuery.slice(0, Number.isFinite(embedMax) ? embedMax : 2000);
+      const queryEmbedding = await generateEmbedding(embedText, geminiApiKey);
+
+      const vectorLiteral = `[${queryEmbedding.join(',')}]`;
+
+      const { data: matchedEntries, error: rpcError } = await supabase.rpc('match_journal_entries', {
+        query_embedding: vectorLiteral,
+        match_user_id: user.id,
+        match_count: chatMatchCount(),
+        match_threshold: chatMatchThreshold(),
+      });
+
+      if (rpcError) {
+        console.error('RPC error:', rpcError);
+      }
+
+      const raw = (matchedEntries ?? []) as MatchedEntry[];
+      entries = diversifyEntriesForContext(raw, chatContextMaxEntries());
+      console.log(`📚 RAG: ${raw.length} raw matches → ${entries.length} after diversify (effectiveQuery ${effectiveQuery.length} chars)`);
+    } else {
+      console.log(`📝 Skipping journal retrieval (heuristic or short query; len=${effectiveQuery.length})`);
+    }
 
     // ============================================================
     // 8. BUILD CONTEXT BLOCK
@@ -405,7 +446,8 @@ serve(async (req) => {
       structuredReply = {
         heading1: null,
         heading2: null,
-        body: "I'm having trouble connecting right now. Please try again in a moment."
+        body: "I'm having trouble connecting right now. Please try again in a moment.",
+        cited_entry_ids: [],
       };
     } else {
       const rawText = extractGeminiResponseText(geminiResult.data);
@@ -420,13 +462,17 @@ serve(async (req) => {
         // Try multiple strategies to extract body
         const extractedBody = extractBody(parsed);
 
+        const parsedRec = parsed as Record<string, unknown>;
+        const citedIds = parseCitedEntryIds(parsedRec);
+
         if (extractedBody) {
           // Clean up body (unwrap nested JSON if needed)
           const cleanedBody = cleanParsedBody({ body: extractedBody });
           structuredReply = {
-            heading1: parsed.heading1 || null,
-            heading2: parsed.heading2 || null,
-            body: cleanedBody
+            heading1: (parsed.heading1 as string | null) || null,
+            heading2: (parsed.heading2 as string | null) || null,
+            body: cleanedBody,
+            cited_entry_ids: citedIds,
           };
         } else {
           // JSON parsed but no usable body found - log and use raw text as body
@@ -435,7 +481,8 @@ serve(async (req) => {
           structuredReply = {
             heading1: null,
             heading2: null,
-            body: sanitizeResponseBody(rawText)
+            body: sanitizeResponseBody(rawText),
+            cited_entry_ids: [],
           };
         }
       } catch {
@@ -443,7 +490,8 @@ serve(async (req) => {
         structuredReply = {
           heading1: null,
           heading2: null,
-          body: sanitizeResponseBody(rawText)
+          body: sanitizeResponseBody(rawText),
+          cited_entry_ids: [],
         };
       }
     }
@@ -456,7 +504,8 @@ serve(async (req) => {
     const assistantContent = JSON.stringify({
       heading1: structuredReply.heading1,
       heading2: structuredReply.heading2,
-      body: structuredReply.body
+      body: structuredReply.body,
+      cited_entry_ids: structuredReply.cited_entry_ids,
     });
 
     const { error: insertError } = await supabase.from('chat_messages').insert([
@@ -472,18 +521,28 @@ serve(async (req) => {
     // 11. RETURN RESPONSE
     // ============================================================
 
-    const sources: ChatSource[] = entries.map((e) => ({
-      id: e.id,
-      created_at: e.created_at,
-      preview: e.content.substring(0, 100),
-    }));
+    const maxCit = chatMaxCitations();
+    const allowedSourceIds = filterCitedIdsToAllowed(
+      structuredReply.cited_entry_ids,
+      entries,
+    ).slice(0, maxCit);
+    const sources: ChatSource[] = allowedSourceIds.map((id) => {
+      const e = entries.find((x) => x.id === id);
+      if (!e) return null;
+      return {
+        id: e.id,
+        created_at: e.created_at,
+        preview: buildPreviewExcerpt(e.content, effectiveQuery),
+      };
+    }).filter((x): x is ChatSource => x !== null);
 
     return jsonResponse({
       reply: structuredReply.body,
       heading1: structuredReply.heading1,
       heading2: structuredReply.heading2,
+      cited_entry_ids: structuredReply.cited_entry_ids,
       sources,
-      sessionId
+      sessionId,
     }, 200);
 
   } catch (error) {
@@ -491,6 +550,7 @@ serve(async (req) => {
     return jsonResponse(
       {
         reply: "I'm having trouble connecting right now. Please try again in a moment.",
+        cited_entry_ids: [],
         sources: [],
       },
       200

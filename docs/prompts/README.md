@@ -1,5 +1,9 @@
 # Memento prompts
 
+## Chat RAG product rules
+
+Retrieval, citation caps, and env tuning are summarized in [Chat RAG product rules](../chat-rag-product-rules.md).
+
 ## `MEMENTO_SYSTEM_PROMPT.md`
 
 Human-reviewed source for the chat Edge Function’s system instructions.

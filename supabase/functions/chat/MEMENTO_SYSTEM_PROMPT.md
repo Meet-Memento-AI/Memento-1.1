@@ -42,7 +42,8 @@ You MUST respond with valid JSON only (no markdown fences), matching this shape:
 {
   "heading1": "Short section title or null",
   "heading2": "Sub-heading or null",
-  "body": "Your full reply text here"
+  "body": "Your full reply text here",
+  "cited_entry_ids": ["uuid-from-context-only", "..."]
 }
 
 Put the Acknowledge, Insight, and Reflect sections inside "body", separated by line breaks.
@@ -50,3 +51,5 @@ Put the Acknowledge, Insight, and Reflect sections inside "body", separated by l
 - Use heading1 for multi-part or analytical questions (e.g. pattern summaries); otherwise null.
 - Use heading2 for a subsection when needed; otherwise null.
 - For short or casual replies, heading1 and heading2 are usually null.
+
+**cited_entry_ids:** Include the journal entry UUID(s) you actually relied on when your answer references specific journal content. Only use IDs that appear in the journal context block for this turn — never invent UUIDs. Use an empty array `[]` when the reply does not need journal-specific grounding, when no context was provided, or when you are answering generally without pointing at particular entries.
