@@ -47,15 +47,7 @@ struct JournalCard: View {
         }
         .background(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: colorScheme == .dark
-                            ? [GrayScale.gray800, GrayScale.gray700]
-                            : [GrayScale.gray100, GrayScale.gray50],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
+                .fill(colorScheme == .dark ? GrayScale.gray900 : GrayScale.gray100)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 24, style: .continuous)

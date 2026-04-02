@@ -11,6 +11,7 @@ public struct ProfileSettingsView: View {
     @Environment(\.dismiss) var dismiss
     @Environment(\.theme) private var theme
     @Environment(\.typography) private var type
+    @Environment(\.colorScheme) private var colorScheme
 
     @State private var firstName: String = ""
     @State private var lastName: String = ""
@@ -23,21 +24,6 @@ public struct ProfileSettingsView: View {
     public var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Spacing.xl) {
-                Spacer(minLength: Spacing.md)
-
-                // Header
-                VStack(alignment: .leading, spacing: Spacing.xs) {
-                    Text("Edit Profile")
-                        .font(type.h3)
-                        .headerGradient()
-
-                    Text("Update your personal information")
-                        .font(type.body1)
-                        .foregroundStyle(theme.mutedForeground)
-                }
-                .padding(.horizontal, Spacing.md)
-                .padding(.bottom, Spacing.xs)
-
                 // Form section
                 VStack(alignment: .leading, spacing: Spacing.lg) {
                     // First name
@@ -120,10 +106,10 @@ public struct ProfileSettingsView: View {
                         .clipShape(RoundedRectangle(cornerRadius: theme.radius.md))
                     }
                 }
-                .padding(.horizontal, Spacing.md)
 
                 Spacer(minLength: Spacing.xxxl)
             }
+            .padding(.horizontal, Spacing.lg)
             .padding(.top, Spacing.xs)
         }
         .background(theme.background.ignoresSafeArea())

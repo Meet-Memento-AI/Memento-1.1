@@ -19,21 +19,6 @@ public struct DataUsageInfoView: View {
     public var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Spacing.xl) {
-                Spacer(minLength: Spacing.md)
-
-                // Header
-                VStack(alignment: .leading, spacing: Spacing.xs) {
-                    Text("Data Collection")
-                        .font(type.h3)
-                        .headerGradient()
-
-                    Text("What we collect and why")
-                        .font(type.body1)
-                        .foregroundStyle(theme.mutedForeground)
-                }
-                .padding(.horizontal, Spacing.md)
-                .padding(.bottom, Spacing.xs)
-
                 // Data We Collect Section
                 dataCollectionSection
 
@@ -51,6 +36,7 @@ public struct DataUsageInfoView: View {
 
                 Spacer(minLength: Spacing.xxxl)
             }
+            .padding(.horizontal, Spacing.lg)
             .padding(.top, Spacing.xs)
         }
         .background(theme.background.ignoresSafeArea())
@@ -75,9 +61,8 @@ public struct DataUsageInfoView: View {
     private var dataCollectionSection: some View {
         VStack(alignment: .leading, spacing: Spacing.md) {
             Text("What We Collect")
-                .font(.system(size: 18, weight: .semibold))
+                .font(type.h5)
                 .foregroundStyle(theme.foreground)
-                .padding(.horizontal, Spacing.md)
                 .padding(.bottom, Spacing.xxs)
 
             VStack(alignment: .leading, spacing: Spacing.md) {
@@ -110,16 +95,14 @@ public struct DataUsageInfoView: View {
             .padding(.vertical, Spacing.sm)
             .background(sectionCardBackground)
             .clipShape(RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous))
-            .padding(.horizontal, Spacing.md)
         }
     }
 
     private var dataUsageSection: some View {
         VStack(alignment: .leading, spacing: Spacing.md) {
             Text("How We Use Your Data")
-                .font(.system(size: 18, weight: .semibold))
+                .font(type.h5)
                 .foregroundStyle(theme.foreground)
-                .padding(.horizontal, Spacing.md)
                 .padding(.bottom, Spacing.xxs)
 
             VStack(alignment: .leading, spacing: Spacing.md) {
@@ -152,16 +135,14 @@ public struct DataUsageInfoView: View {
             .padding(.vertical, Spacing.sm)
             .background(sectionCardBackground)
             .clipShape(RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous))
-            .padding(.horizontal, Spacing.md)
         }
     }
 
     private var aiServicesSection: some View {
         VStack(alignment: .leading, spacing: Spacing.md) {
             Text("AI Features")
-                .font(.system(size: 18, weight: .semibold))
+                .font(type.h5)
                 .foregroundStyle(theme.foreground)
-                .padding(.horizontal, Spacing.md)
                 .padding(.bottom, Spacing.xxs)
 
             VStack(alignment: .leading, spacing: Spacing.md) {
@@ -194,16 +175,14 @@ public struct DataUsageInfoView: View {
             .padding(.vertical, Spacing.sm)
             .background(sectionCardBackground)
             .clipShape(RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous))
-            .padding(.horizontal, Spacing.md)
         }
     }
 
     private var dataStorageSection: some View {
         VStack(alignment: .leading, spacing: Spacing.md) {
             Text("Data Storage")
-                .font(.system(size: 18, weight: .semibold))
+                .font(type.h5)
                 .foregroundStyle(theme.foreground)
-                .padding(.horizontal, Spacing.md)
                 .padding(.bottom, Spacing.xxs)
 
             VStack(alignment: .leading, spacing: Spacing.md) {
@@ -236,16 +215,14 @@ public struct DataUsageInfoView: View {
             .padding(.vertical, Spacing.sm)
             .background(sectionCardBackground)
             .clipShape(RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous))
-            .padding(.horizontal, Spacing.md)
         }
     }
 
     private var yourRightsSection: some View {
         VStack(alignment: .leading, spacing: Spacing.md) {
             Text("Your Rights")
-                .font(.system(size: 18, weight: .semibold))
+                .font(type.h5)
                 .foregroundStyle(theme.foreground)
-                .padding(.horizontal, Spacing.md)
                 .padding(.bottom, Spacing.xxs)
 
             VStack(alignment: .leading, spacing: Spacing.md) {
@@ -268,7 +245,6 @@ public struct DataUsageInfoView: View {
             .padding(.vertical, Spacing.sm)
             .background(sectionCardBackground)
             .clipShape(RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous))
-            .padding(.horizontal, Spacing.md)
         }
     }
 
@@ -278,10 +254,12 @@ public struct DataUsageInfoView: View {
     private var sectionCardBackground: some View {
         if #available(iOS 26.0, *) {
             RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous)
-                .fill(colorScheme == .dark ? Color.black.opacity(0.3) : Color.black.opacity(0.1))
+                .fill(colorScheme == .dark ? Color.black.opacity(0.3) : Color.white.opacity(0.7))
                 .glassEffect(.regular, in: RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous))
         } else {
-            colorScheme == .dark ? GrayScale.gray800 : GrayScale.gray100
+            RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous)
+                .fill(colorScheme == .dark ? GrayScale.gray800 : Color.white)
+                .shadow(color: colorScheme == .dark ? .clear : Color.black.opacity(0.06), radius: 8, x: 0, y: 2)
         }
     }
 }

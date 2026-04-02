@@ -20,33 +20,17 @@ public struct AppearanceSettingsView: View {
     public var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Spacing.xl) {
-                Spacer(minLength: Spacing.md)
-
-                // Header
-                VStack(alignment: .leading, spacing: Spacing.xs) {
-                    Text("Appearance")
-                        .font(type.h3)
-                        .headerGradient()
-
-                    Text("Customize how MeetMemento looks")
-                        .font(type.body1)
-                        .foregroundStyle(theme.mutedForeground)
-                }
-                .padding(.horizontal, Spacing.md)
-                .padding(.bottom, Spacing.xs)
-
                 // Theme selector section
                 VStack(alignment: .leading, spacing: Spacing.md) {
                     VStack(alignment: .leading, spacing: Spacing.sm) {
                         Text("Theme")
-                            .font(.system(size: 18, weight: .semibold))
+                            .font(type.h5)
                             .foregroundStyle(theme.foreground)
 
                         Text("Choose your preferred color scheme")
                             .font(type.body2)
                             .foregroundStyle(theme.mutedForeground)
                     }
-                    .padding(.horizontal, Spacing.md)
 
                     // Theme options card
                     VStack(spacing: 0) {
@@ -105,10 +89,10 @@ public struct AppearanceSettingsView: View {
                     .background(sectionCardBackground)
                     .clipShape(RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous))
                 }
-                .padding(.horizontal, Spacing.md)
 
                 Spacer(minLength: Spacing.xxxl)
             }
+            .padding(.horizontal, Spacing.lg)
             .padding(.top, Spacing.xs)
         }
         .background(theme.background.ignoresSafeArea())
@@ -137,10 +121,12 @@ public struct AppearanceSettingsView: View {
     private var sectionCardBackground: some View {
         if #available(iOS 26.0, *) {
             RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous)
-                .fill(colorScheme == .dark ? Color.black.opacity(0.3) : Color.black.opacity(0.1))
+                .fill(colorScheme == .dark ? Color.black.opacity(0.3) : Color.white.opacity(0.7))
                 .glassEffect(.regular, in: RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous))
         } else {
-            colorScheme == .dark ? GrayScale.gray800 : GrayScale.gray100
+            RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous)
+                .fill(colorScheme == .dark ? GrayScale.gray800 : Color.white)
+                .shadow(color: colorScheme == .dark ? .clear : Color.black.opacity(0.06), radius: 8, x: 0, y: 2)
         }
     }
 

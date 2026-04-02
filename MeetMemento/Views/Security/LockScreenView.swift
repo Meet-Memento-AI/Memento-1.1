@@ -12,6 +12,7 @@ import SwiftUI
 struct LockScreenView: View {
     @ObservedObject var viewModel: LockScreenViewModel
     @EnvironmentObject var authViewModel: AuthViewModel
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.theme) private var theme
     @Environment(\.typography) private var type
 
@@ -115,6 +116,19 @@ struct LockScreenView: View {
                     try? await Task.sleep(nanoseconds: 100_000_000)
                     isPinFieldFocused = true
                 }
+            }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .active else { return }
+            guard viewModel.isLocked else { return }
+            guard viewModel.isBiometricAvailable else { return }
+            guard !viewModel.showPINFallback else { return }
+            guard !viewModel.isAuthenticating else { return }
+
+            Task {
+                try? await Task.sleep(nanoseconds: 300_000_000)
+                guard viewModel.isLocked && !viewModel.showPINFallback && !viewModel.isAuthenticating else { return }
+                await viewModel.authenticateWithBiometrics()
             }
         }
     }
