@@ -176,9 +176,11 @@ public struct WordCounterNavButton: View {
 // MARK: - Preview Helpers
 
 private struct EmptyStatePreview: View {
+    @Environment(\.theme) private var theme
+
     var body: some View {
         ZStack {
-            Color.white
+            theme.background
                 .ignoresSafeArea()
 
             WordCounterNavButton(
@@ -192,11 +194,12 @@ private struct EmptyStatePreview: View {
 }
 
 private struct ProgressPreview: View {
+    @Environment(\.theme) private var theme
     let count: Int
 
     var body: some View {
         ZStack {
-            Color.white
+            theme.background
                 .ignoresSafeArea()
 
             WordCounterNavButton(
@@ -210,9 +213,11 @@ private struct ProgressPreview: View {
 }
 
 private struct CompletePreview: View {
+    @Environment(\.theme) private var theme
+
     var body: some View {
         ZStack {
-            Color.white
+            theme.background
                 .ignoresSafeArea()
 
             WordCounterNavButton(

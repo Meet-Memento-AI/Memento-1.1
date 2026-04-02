@@ -127,7 +127,7 @@ struct SettingsRow: View {
             action: {}
         )
     }
-    .background(BaseColors.white)
+    .background(Color(uiColor: .systemBackground))
     .cornerRadius(12)
     .padding()
     .useTheme()

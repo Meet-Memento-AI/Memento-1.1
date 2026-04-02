@@ -25,7 +25,7 @@ public struct IconButton: View {
                 .resizable()
                 .scaledToFit()
                 .frame(width: size * 0.45, height: size * 0.45) // balanced icon size
-                .foregroundStyle(Color.white)                  // icon stays white
+                .foregroundStyle(theme.primaryForeground)
                 .padding(size * 0.25)                          // breathing room inside FAB
                 .background(
                     LinearGradient(

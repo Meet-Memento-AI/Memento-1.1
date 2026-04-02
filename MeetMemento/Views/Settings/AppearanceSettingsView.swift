@@ -137,7 +137,7 @@ public struct AppearanceSettingsView: View {
     private var sectionCardBackground: some View {
         if #available(iOS 26.0, *) {
             RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous)
-                .fill(Color.white.opacity(0.4))
+                .fill(colorScheme == .dark ? Color.black.opacity(0.3) : Color.black.opacity(0.1))
                 .glassEffect(.regular, in: RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous))
         } else {
             colorScheme == .dark ? GrayScale.gray800 : GrayScale.gray100

@@ -64,7 +64,7 @@ struct AILoadingState: View {
 
 #Preview {
     ZStack {
-        Color.white.ignoresSafeArea()
+        Color(uiColor: .systemBackground).ignoresSafeArea()
         AILoadingState()
             .useTheme()
     }

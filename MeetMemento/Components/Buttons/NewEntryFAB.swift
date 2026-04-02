@@ -50,7 +50,7 @@ public struct NewEntryFAB: View {
     private var glassStyleContent: some View {
         Image(systemName: "square.and.pencil")
             .font(.system(size: size * 0.4, weight: .semibold))
-            .foregroundStyle(.white)
+            .foregroundStyle(theme.primaryForeground)
             .frame(width: size, height: size)
             .glassEffect(
                 .regular.tint(theme.primary.opacity(0.85)).interactive(),
@@ -79,7 +79,7 @@ public struct NewEntryFAB: View {
 
             Image(systemName: "square.and.pencil")
                 .font(.system(size: size * 0.4, weight: .semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(theme.primaryForeground)
         }
         .frame(width: size, height: size)
         .shadow(color: theme.primary.opacity(0.3), radius: 12, x: 0, y: 6)

@@ -20,6 +20,7 @@ public struct ChatInputField: View {
     var onJournalTap: (() -> Void)? = nil
 
     @Environment(\.theme) private var theme
+    @Environment(\.colorScheme) private var colorScheme
     @FocusState private var isFocused: Bool
     // Use @ObservedObject for singleton to avoid creating duplicate observers
     @ObservedObject private var speechService = SpeechService.shared
@@ -127,7 +128,7 @@ public struct ChatInputField: View {
         if #available(iOS 26.0, *) {
             // iOS 26: Liquid glass effect with higher frost (semi-transparent fill adds opacity)
             RoundedRectangle(cornerRadius: theme.radius.xl, style: .continuous)
-                .fill(Color.white.opacity(0.4))
+                .fill(colorScheme == .dark ? Color.white.opacity(0.4) : Color.black.opacity(0.1))
                 .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: theme.radius.xl, style: .continuous))
         } else {
             // iOS 18+: Light grey background
@@ -231,11 +232,11 @@ public struct ChatInputField: View {
         } label: {
             Image(systemName: "square.fill")
                 .font(.system(size: 16, weight: .bold))
-                .foregroundColor(.white)
+                .foregroundColor(theme.destructiveForeground)
                 .frame(width: 36, height: 36)
                 .background(
                     Circle()
-                        .fill(Color.red)
+                        .fill(theme.destructive)
                 )
         }
         .accessibilityLabel("Stop voice input")
@@ -265,7 +266,7 @@ public struct ChatInputField: View {
     private var journalButtonBackground: some View {
         if #available(iOS 26.0, *) {
             Circle()
-                .fill(Color.white.opacity(0.4))
+                .fill(colorScheme == .dark ? Color.white.opacity(0.4) : Color.black.opacity(0.1))
                 .glassEffect(.regular.interactive(), in: Circle())
         } else {
             Circle()
@@ -284,11 +285,11 @@ public struct ChatInputField: View {
                 if isSending {
                     ProgressView()
                         .controlSize(.small)
-                        .tint(.white)
+                        .tint(theme.primaryForeground)
                 } else {
                     Image(systemName: "arrow.up")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(isSendButtonEnabled ? .white : theme.mutedForeground)
+                        .foregroundColor(isSendButtonEnabled ? theme.primaryForeground : theme.mutedForeground)
                 }
             }
             .frame(width: 36, height: 36)
@@ -377,11 +378,13 @@ private struct VoiceWaveView: View {
         return 0.7 + 0.3 * seed
     }
 
+    @Environment(\.theme) private var theme
+
     var body: some View {
         HStack(spacing: barSpacing) {
             ForEach(0..<barCount, id: \.self) { index in
                 RoundedRectangle(cornerRadius: 2)
-                    .fill(Color.gray.opacity(0.5))
+                    .fill(theme.mutedForeground)
                     .frame(width: barWidth, height: barHeight(for: index))
                     .animation(.easeOut(duration: 0.12), value: audioLevel)
             }

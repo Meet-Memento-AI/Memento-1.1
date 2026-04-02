@@ -18,6 +18,7 @@ struct JournalCard: View {
     // MARK: - Environment
     @Environment(\.theme) private var theme
     @Environment(\.typography) private var type
+    @Environment(\.colorScheme) private var colorScheme
      
     // MARK: - State
     @State private var isPressed = false
@@ -48,7 +49,9 @@ struct JournalCard: View {
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .fill(
                     LinearGradient(
-                        colors: [GrayScale.gray100, GrayScale.gray50],
+                        colors: colorScheme == .dark
+                            ? [GrayScale.gray800, GrayScale.gray700]
+                            : [GrayScale.gray100, GrayScale.gray50],
                         startPoint: .top,
                         endPoint: .bottom
                     )
@@ -56,7 +59,7 @@ struct JournalCard: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(theme.cardBackground, lineWidth: 1.5)
+                .stroke(theme.border, lineWidth: 1.5)
         )
         .shadow(color: .black.opacity(0.08), radius: 6, x: 0, y: 3)
         .pressEffect(isPressed: $isPressed, scale: 0.98, duration: Spacing.Duration.fast)
@@ -187,7 +190,7 @@ private struct JournalCardHarness: View {
         )
         .previewLayout(.sizeThatFits)
         .frame(maxWidth: .infinity) // allow card to stretch
-        .background(BaseColors.white)
+        .background(Color(uiColor: .systemBackground))
         .useTheme()
         .useTypography()
     }

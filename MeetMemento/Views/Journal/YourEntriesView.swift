@@ -119,7 +119,7 @@ struct YourEntriesView: View {
 
             Image(systemName: "book.closed.fill")
                 .font(.system(size: 36))
-                .foregroundStyle(PrimaryScale.primary600)
+                .foregroundStyle(theme.primary)
 
             Text("No journal entries yet")
                 .font(type.h3)
