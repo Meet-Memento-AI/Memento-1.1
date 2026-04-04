@@ -18,8 +18,8 @@ public struct GoogleSignInButton: View {
     @State private var isHovered: Bool = false
 
     // MARK: – Sizing & spacing
-    private let height: CGFloat = 56
-    private let cornerRadius: CGFloat = 28 // Fully round (height / 2)
+    private let height: CGFloat = 48
+    private let cornerRadius: CGFloat = 16 // Standard button radius
     private let borderWidth: CGFloat = 1
     private let iconSize: CGFloat = 20
     private let horizontalPadding: CGFloat = 12

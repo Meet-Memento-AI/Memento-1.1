@@ -3,7 +3,7 @@
 //  MeetMemento
 //
 //  A gradient overlay for scroll view edges
-//  Fully obscures content at the edge (100% opacity) fading to transparent (0%)
+//  Fades content at the edge (fully opaque) to ensure header visibility
 //
 
 import SwiftUI
@@ -20,18 +20,18 @@ struct ScrollEdgeFade: View {
         LinearGradient(
             stops: edge == .top
                 ? [
-                    .init(color: theme.background, location: 0.0),
-                    .init(color: theme.background, location: 0.3),
-                    .init(color: theme.background.opacity(0.8), location: 0.5),
-                    .init(color: theme.background.opacity(0.4), location: 0.7),
+                    // Harsh top fade: solid behind header (~75%), then sharp visible fade
+                    .init(color: theme.background.opacity(1.0), location: 0.0),
+                    .init(color: theme.background.opacity(1.0), location: 0.75),
+                    .init(color: theme.background.opacity(0.6), location: 0.85),
                     .init(color: theme.background.opacity(0), location: 1.0)
                 ]
                 : [
+                    // Bottom fade: gentle transition for scroll content
                     .init(color: theme.background.opacity(0), location: 0.0),
-                    .init(color: theme.background.opacity(0.4), location: 0.3),
-                    .init(color: theme.background.opacity(0.8), location: 0.5),
-                    .init(color: theme.background, location: 0.7),
-                    .init(color: theme.background, location: 1.0)
+                    .init(color: theme.background.opacity(0.5), location: 0.4),
+                    .init(color: theme.background.opacity(0.85), location: 0.7),
+                    .init(color: theme.background.opacity(1.0), location: 1.0)
                 ],
             startPoint: .top,
             endPoint: .bottom
@@ -51,7 +51,7 @@ struct ScrollEdgeFade: View {
                     .background(Color.red.opacity(0.3))
             }
         }
-        ScrollEdgeFade(edge: .top, height: 120)
+        ScrollEdgeFade(edge: .top, height: 60)
             .frame(maxHeight: .infinity, alignment: .top)
     }
     .useTheme()
@@ -67,7 +67,7 @@ struct ScrollEdgeFade: View {
                     .background(Color.red.opacity(0.3))
             }
         }
-        ScrollEdgeFade(edge: .bottom, height: 120)
+        ScrollEdgeFade(edge: .bottom, height: 60)
             .frame(maxHeight: .infinity, alignment: .bottom)
     }
     .useTheme()

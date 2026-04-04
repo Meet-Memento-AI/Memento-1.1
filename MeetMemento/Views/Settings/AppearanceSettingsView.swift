@@ -11,7 +11,6 @@ public struct AppearanceSettingsView: View {
     @Environment(\.dismiss) var dismiss
     @Environment(\.theme) private var theme
     @Environment(\.typography) private var type
-    @Environment(\.colorScheme) private var colorScheme
 
     @State private var selectedTheme: AppThemePreference = .system
 
@@ -121,12 +120,12 @@ public struct AppearanceSettingsView: View {
     private var sectionCardBackground: some View {
         if #available(iOS 26.0, *) {
             RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous)
-                .fill(colorScheme == .dark ? Color.black.opacity(0.3) : Color.white.opacity(0.7))
+                .fill(theme.glassFill)
                 .glassEffect(.regular, in: RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous))
         } else {
             RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous)
-                .fill(colorScheme == .dark ? GrayScale.gray800 : Color.white)
-                .shadow(color: colorScheme == .dark ? .clear : Color.black.opacity(0.06), radius: 8, x: 0, y: 2)
+                .fill(theme.glassFallback)
+                .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 2)
         }
     }
 
@@ -139,6 +138,9 @@ public struct AppearanceSettingsView: View {
     private func selectTheme(_ themeOption: AppThemePreference) {
         selectedTheme = themeOption
         PreferencesService.shared.themePreference = themeOption
+
+        // Notify theme observers
+        NotificationCenter.default.post(name: .themePreferenceChanged, object: nil)
 
         // Haptic feedback
         UIImpactFeedbackGenerator(style: .light).impactOccurred()

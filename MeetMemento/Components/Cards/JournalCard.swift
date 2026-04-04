@@ -47,7 +47,7 @@ struct JournalCard: View {
         }
         .background(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(colorScheme == .dark ? GrayScale.gray900 : GrayScale.gray100)
+                .fill(colorScheme == .light ? GrayScale.gray100 : theme.cardBackground)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 24, style: .continuous)

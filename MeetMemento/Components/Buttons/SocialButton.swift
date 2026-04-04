@@ -27,14 +27,13 @@ public struct SocialButton: View {
                 if let systemImage { Image(systemName: systemImage).font(.system(size: 16, weight: .semibold)) }
                 Text(title).font(type.button).fontWeight(.semibold)
             }
+            .frame(height: 48)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
-            .padding(.horizontal, 16)
             .background(theme.primary)
             .foregroundStyle(theme.primaryForeground)
-            .clipShape(RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: theme.radius.button, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous)
+                RoundedRectangle(cornerRadius: theme.radius.button, style: .continuous)
                     .stroke(theme.ring.opacity(0.15), lineWidth: 1)
             )
             .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 4)

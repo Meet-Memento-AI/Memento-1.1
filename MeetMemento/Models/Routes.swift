@@ -8,11 +8,24 @@
 import Foundation
 
 // MARK: - Navigation route for journal entry editor
-public enum EntryRoute: Hashable {
+public enum EntryRoute: Hashable, Identifiable {
     case create
     case createWithTitle(String)
     case createWithContent(title: String, content: String)
     case edit(Entry)
+
+    public var id: String {
+        switch self {
+        case .create:
+            return "create"
+        case .createWithTitle(let title):
+            return "createWithTitle-\(title)"
+        case .createWithContent(let title, _):
+            return "createWithContent-\(title)"
+        case .edit(let entry):
+            return "edit-\(entry.id)"
+        }
+    }
 }
 
 // MARK: - Navigation route for settings

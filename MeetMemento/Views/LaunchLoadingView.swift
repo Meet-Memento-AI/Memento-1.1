@@ -3,43 +3,30 @@
 //  MeetMemento
 //
 //  Minimal loading view displayed during auth initialization.
-//  Matches the app's launch screen for a seamless transition.
+//  Matches the app's launch screen (white + centered logo) for a seamless transition.
 //
 
 import SwiftUI
 
 struct LaunchLoadingView: View {
-    @Environment(\.theme) private var theme
-    @State private var isAnimating = false
-
     var body: some View {
         ZStack {
-            theme.background.ignoresSafeArea()
+            // White background matching launch screen
+            Color.white.ignoresSafeArea()
 
-            VStack(spacing: 24) {
-
-                // Subtle loading indicator
-                ProgressView()
-                    .progressViewStyle(CircularProgressViewStyle(tint: theme.primary))
-                    .scaleEffect(1.2)
-            }
-        }
-        .onAppear {
-            isAnimating = true
+            // Centered logo matching launch screen dimensions
+            Image("Memento-Logo")
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 240, height: 128)
         }
     }
 }
 
 #Preview("Light") {
     LaunchLoadingView()
-        .useTheme()
-        .useTypography()
-        .preferredColorScheme(.light)
 }
 
 #Preview("Dark") {
     LaunchLoadingView()
-        .useTheme()
-        .useTypography()
-        .preferredColorScheme(.dark)
 }

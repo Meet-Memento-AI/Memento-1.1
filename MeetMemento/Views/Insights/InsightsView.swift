@@ -71,6 +71,9 @@ public struct InsightsView: View {
     @State private var isLoadingInsight = false
     @State private var insightError: String?
 
+    // Entry sheet state
+    @State private var activeEntryRoute: EntryRoute?
+
     // Cache: one insight per month (key: "yyyy-MM"). API is only called on pull-to-refresh or date change.
     @State private var insightCache: [String: CachedInsight] = [:]
 
@@ -141,7 +144,7 @@ public struct InsightsView: View {
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Button {
                             UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                            navigationPath.append(EntryRoute.create)
+                            activeEntryRoute = .create
                         } label: {
                             Image(systemName: "square.and.pencil")
                                 .font(type.body1)
@@ -152,8 +155,12 @@ public struct InsightsView: View {
                     }
                 }
                 .navigationBarTitleDisplayMode(.inline)
-                .navigationDestination(for: EntryRoute.self) { route in
-                    entryDestination(for: route)
+                .sheet(item: $activeEntryRoute) { route in
+                    entrySheet(for: route)
+                        .presentationDetents([.fraction(0.95)])
+                        .presentationDragIndicator(.hidden)
+                        .presentationCornerRadius(32)
+                        .interactiveDismissDisabled(false)
                 }
                 .navigationDestination(for: SettingsRoute.self) { route in
                     settingsDestination(for: route)
@@ -314,31 +321,28 @@ public struct InsightsView: View {
     // MARK: - Navigation Destinations
 
     @ViewBuilder
-    private func entryDestination(for route: EntryRoute) -> some View {
+    private func entrySheet(for route: EntryRoute) -> some View {
         switch route {
         case .create:
             AddEntryView(state: .create) { title, text in
                 entryViewModel.createEntry(title: title, text: text)
                 selectedTab?.wrappedValue = .yourEntries
-                navigationPath.removeLast()
+                activeEntryRoute = nil
             }
-            .toolbar(.hidden, for: .tabBar)
             .environment(\.fabVisible, false)
         case .createWithTitle(let prefillTitle):
             AddEntryView(state: .createWithTitle(prefillTitle)) { title, text in
                 entryViewModel.createEntry(title: title, text: text)
                 selectedTab?.wrappedValue = .yourEntries
-                navigationPath.removeLast()
+                activeEntryRoute = nil
             }
-            .toolbar(.hidden, for: .tabBar)
             .environment(\.fabVisible, false)
         case .createWithContent(let prefillTitle, let prefillContent):
             AddEntryView(state: .createWithContent(title: prefillTitle, content: prefillContent)) { title, text in
                 entryViewModel.createEntry(title: title, text: text)
                 selectedTab?.wrappedValue = .yourEntries
-                navigationPath.removeLast()
+                activeEntryRoute = nil
             }
-            .toolbar(.hidden, for: .tabBar)
             .environment(\.fabVisible, false)
         case .edit(let entry):
             AddEntryView(state: .edit(entry)) { title, text in
@@ -346,9 +350,8 @@ public struct InsightsView: View {
                 updated.title = title
                 updated.text = text
                 entryViewModel.updateEntry(updated)
-                navigationPath.removeLast()
+                activeEntryRoute = nil
             }
-            .toolbar(.hidden, for: .tabBar)
             .environment(\.fabVisible, false)
         }
     }
@@ -380,7 +383,7 @@ public struct InsightsView: View {
     // MARK: - Actions
 
     private func createEntry() {
-        navigationPath.append(EntryRoute.create)
+        activeEntryRoute = .create
     }
 
     // MARK: - Data Fetching (sample only; no edge function)

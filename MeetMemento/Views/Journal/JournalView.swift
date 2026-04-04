@@ -26,6 +26,10 @@ public struct JournalView: View {
     var isEmbedded: Bool = false
     /// External navigation path binding when embedded
     @Binding var externalNavigationPath: NavigationPath
+    /// Callback to open drawer menu on right swipe
+    var onSwipeToOpenMenu: (() -> Void)? = nil
+    /// Callback to present entry sheet when embedded (ContentView provides this)
+    var onPresentEntry: ((EntryRoute) -> Void)? = nil
 
     @EnvironmentObject var entryViewModel: EntryViewModel
     @EnvironmentObject var authViewModel: AuthViewModel
@@ -44,6 +48,9 @@ public struct JournalView: View {
 
     // Task for loading data
     @State private var loadingTask: Task<Void, Never>?
+
+    // Entry sheet state for standalone mode
+    @State private var activeEntryRoute: EntryRoute?
 
     @Environment(\.theme) private var theme
     @Environment(\.typography) private var type
@@ -75,11 +82,9 @@ public struct JournalView: View {
         return formatter.string(from: selectedDate)
     }
 
-    private var filteredEntriesByMonth: [MonthGroup] {
-        let calendar = Calendar.current
-        return entryViewModel.entriesByMonth.filter { monthGroup in
-            calendar.isDate(monthGroup.monthStart, equalTo: selectedDate, toGranularity: .month)
-        }
+    /// All entries grouped by month - no filtering for instant display of new entries
+    private var allEntriesByMonth: [MonthGroup] {
+        entryViewModel.entriesByMonth
     }
 
     private var availableMonthsForYear: [Int] {
@@ -103,9 +108,16 @@ public struct JournalView: View {
         return safeAreaTop + 8 + 44  // = safeAreaTop + 52
     }
 
-    public init(isEmbedded: Bool = false, externalNavigationPath: Binding<NavigationPath> = .constant(NavigationPath())) {
+    public init(
+        isEmbedded: Bool = false,
+        externalNavigationPath: Binding<NavigationPath> = .constant(NavigationPath()),
+        onSwipeToOpenMenu: (() -> Void)? = nil,
+        onPresentEntry: ((EntryRoute) -> Void)? = nil
+    ) {
         self.isEmbedded = isEmbedded
         self._externalNavigationPath = externalNavigationPath
+        self.onSwipeToOpenMenu = onSwipeToOpenMenu
+        self.onPresentEntry = onPresentEntry
     }
 
     public var body: some View {
@@ -157,9 +169,6 @@ public struct JournalView: View {
             // Standalone mode with own NavigationStack
             NavigationStack(path: navigationPath) {
                 coreContentView
-                    .navigationDestination(for: EntryRoute.self) { route in
-                        entryDestination(for: route)
-                    }
                     .navigationDestination(for: SettingsRoute.self) { route in
                         settingsDestination(for: route)
                     }
@@ -182,6 +191,13 @@ public struct JournalView: View {
                                 .environment(\.fabVisible, false)
                         }
                     }
+                    .sheet(item: $activeEntryRoute) { route in
+                        entrySheet(for: route)
+                            .presentationDetents([.fraction(0.95)])
+                            .presentationDragIndicator(.hidden)
+                            .presentationCornerRadius(32)
+                            .interactiveDismissDisabled(false)
+                    }
             }
         }
     }
@@ -196,7 +212,7 @@ public struct JournalView: View {
 
             YourEntriesView(
                     entryViewModel: entryViewModel,
-                    monthGroups: filteredEntriesByMonth,
+                    monthGroups: allEntriesByMonth,
                     topContentPadding: isEmbedded ? topHeaderInset : 0,
                     onMonthVisibilityChanged: { monthStart in
                         // Sync scroll position with picker selection
@@ -206,7 +222,13 @@ public struct JournalView: View {
                         visibleMonthStart = monthStart
                     },
                     onNavigateToEntry: { route in
-                        navigationPath.wrappedValue.append(route)
+                        if isEmbedded, let onPresentEntry = onPresentEntry {
+                            // When embedded, use ContentView's sheet presentation
+                            onPresentEntry(route)
+                        } else {
+                            // Standalone mode: use our own sheet
+                            activeEntryRoute = route
+                        }
                     }
                 )
                 .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -219,6 +241,17 @@ public struct JournalView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea(edges: .all)
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 50, coordinateSpace: .local)
+                .onEnded { value in
+                    let horizontal = value.translation.width
+                    let vertical = abs(value.translation.height)
+                    // Right swipe: positive horizontal, more horizontal than vertical
+                    if horizontal > 80 && horizontal > vertical {
+                        onSwipeToOpenMenu?()
+                    }
+                }
+        )
         .background(theme.background.ignoresSafeArea(edges: .all))
         .toolbar {
                 // Only show toolbar when NOT embedded (embedded uses TopNavHeader)
@@ -254,7 +287,7 @@ public struct JournalView: View {
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Button {
                             UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                            navigationPath.wrappedValue.append(EntryRoute.create)
+                            activeEntryRoute = .create
                         } label: {
                             Image(systemName: "square.and.pencil")
                                 .font(type.body1)
@@ -337,28 +370,25 @@ public struct JournalView: View {
     // MARK: - Navigation Destinations
 
     @ViewBuilder
-    private func entryDestination(for route: EntryRoute) -> some View {
+    private func entrySheet(for route: EntryRoute) -> some View {
         switch route {
         case .create:
             AddEntryView(state: .create) { title, text in
                 entryViewModel.createEntry(title: title, text: text)
-                navigationPath.wrappedValue.removeLast()
+                activeEntryRoute = nil
             }
-            .toolbar(.hidden, for: .tabBar)
             .environment(\.fabVisible, false)
         case .createWithTitle(let prefillTitle):
             AddEntryView(state: .createWithTitle(prefillTitle)) { title, text in
                 entryViewModel.createEntry(title: title, text: text)
-                navigationPath.wrappedValue.removeLast()
+                activeEntryRoute = nil
             }
-            .toolbar(.hidden, for: .tabBar)
             .environment(\.fabVisible, false)
         case .createWithContent(let prefillTitle, let prefillContent):
             AddEntryView(state: .createWithContent(title: prefillTitle, content: prefillContent)) { title, text in
                 entryViewModel.createEntry(title: title, text: text)
-                navigationPath.wrappedValue.removeLast()
+                activeEntryRoute = nil
             }
-            .toolbar(.hidden, for: .tabBar)
             .environment(\.fabVisible, false)
         case .edit(let entry):
             AddEntryView(state: .edit(entry)) { title, text in
@@ -366,9 +396,8 @@ public struct JournalView: View {
                 updated.title = title
                 updated.text = text
                 entryViewModel.updateEntry(updated)
-                navigationPath.wrappedValue.removeLast()
+                activeEntryRoute = nil
             }
-            .toolbar(.hidden, for: .tabBar)
             .environment(\.fabVisible, false)
         }
     }

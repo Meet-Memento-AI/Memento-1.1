@@ -11,13 +11,13 @@ import SwiftUI
 
 public struct NewEntryFAB: View {
     let action: () -> Void
-    var size: CGFloat = 56
+    var size: CGFloat = 64
     var enableHaptic: Bool = true
 
     @Environment(\.theme) private var theme
     @Environment(\.typography) private var type
 
-    public init(size: CGFloat = 56, enableHaptic: Bool = true, action: @escaping () -> Void) {
+    public init(size: CGFloat = 64, enableHaptic: Bool = true, action: @escaping () -> Void) {
         self.size = size
         self.enableHaptic = enableHaptic
         self.action = action
@@ -45,15 +45,15 @@ public struct NewEntryFAB: View {
         }
     }
 
-    // iOS 26+: Tinted glass with interactive feedback
+    // iOS 26+: Pure liquid glass with primary/600 icon
     @available(iOS 26.0, *)
     private var glassStyleContent: some View {
         Image(systemName: "square.and.pencil")
             .font(.system(size: size * 0.4, weight: .semibold))
-            .foregroundStyle(theme.primaryForeground)
+            .foregroundStyle(PrimaryScale.primary600)
             .frame(width: size, height: size)
             .glassEffect(
-                .regular.tint(theme.primary.opacity(0.85)).interactive(),
+                .regular.interactive(),
                 in: Circle()
             )
     }

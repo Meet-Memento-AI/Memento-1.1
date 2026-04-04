@@ -89,23 +89,51 @@ public struct AddEntryView: View {
         }
     }
 
+    private var formattedDate: String {
+        let date = editingEntry?.createdAt ?? Date()
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM d"
+        let dayString = formatter.string(from: date)
+
+        // Add ordinal suffix
+        let day = Calendar.current.component(.day, from: date)
+        let suffix: String
+        switch day {
+        case 1, 21, 31: suffix = "st"
+        case 2, 22: suffix = "nd"
+        case 3, 23: suffix = "rd"
+        default: suffix = "th"
+        }
+
+        let yearFormatter = DateFormatter()
+        yearFormatter.dateFormat = "yyyy"
+        let year = yearFormatter.string(from: date)
+
+        return "\(dayString)\(suffix), \(year)"
+    }
+
     public var body: some View {
         GeometryReader { geometry in
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    // Notion-style title field
-                    titleField
-                        .padding(.top, 24)
+            VStack(spacing: 0) {
+                // Custom sheet header
+                sheetHeader
 
-                    // Spacious body editor
-                    bodyField
-                        .padding(.top, 16)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        // Notion-style title field
+                        titleField
+                            .padding(.top, 16)
 
-                    Spacer(minLength: 100) // Space for FAB when keyboard hidden
+                        // Spacious body editor
+                        bodyField
+                            .padding(.top, 16)
+
+                        Spacer(minLength: 100) // Space for FAB when keyboard hidden
+                    }
+                    .padding(.horizontal, 20)
                 }
-                .padding(.horizontal, 20)
+                .scrollDismissesKeyboard(.interactively)
             }
-            .scrollDismissesKeyboard(.interactively)
             .overlay(alignment: .bottom) {
                 microphoneFAB
                     .padding(.bottom, keyboardBottomPadding(geometry: geometry))
@@ -113,12 +141,6 @@ public struct AddEntryView: View {
         }
         .ignoresSafeArea(.keyboard)
         .background(theme.background.ignoresSafeArea())
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                saveButton
-            }
-        }
         .onAppear {
             setupInitialFocus()
         }
@@ -166,6 +188,75 @@ public struct AddEntryView: View {
     
     // MARK: - Subviews
 
+    private var sheetHeader: some View {
+        VStack(spacing: 12) {
+            // Drag handle indicator
+            Capsule()
+                .fill(theme.border)
+                .frame(width: 36, height: 5)
+                .padding(.top, 8)
+
+            // Header row
+            HStack {
+                // Back button
+                Button { dismiss() } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(theme.foreground)
+                        .frame(width: 40, height: 40)
+                        .background(
+                            Circle()
+                                .fill(Color.gray.opacity(0.5))
+                        )
+                }
+
+                Spacer()
+
+                // Date pill
+                HStack(spacing: 6) {
+                    Image(systemName: "calendar")
+                        .font(.system(size: 13, weight: .medium))
+                    Text(formattedDate)
+                        .font(.system(size: 14, weight: .semibold))
+                }
+                .foregroundStyle(theme.foreground)
+                .padding(.horizontal, 14)
+                .frame(height: 40)
+                .background(
+                    Capsule()
+                        .fill(Color.gray.opacity(0.5))
+                )
+
+                Spacer()
+
+                // Submit button
+                Button { save() } label: {
+                    if isSaving {
+                        ProgressView()
+                            .tint(.white)
+                            .frame(width: 40, height: 40)
+                            .background(Circle().fill(theme.primary.opacity(0.7)))
+                    } else {
+                        Image(systemName: "arrow.up")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 40, height: 40)
+                            .background(
+                                Circle()
+                                    .fill(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                        ? theme.primary.opacity(0.4)
+                                        : theme.primary)
+                            )
+                    }
+                }
+                .disabled(isSaving || text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 8)
+        }
+        .padding(.bottom, 8)
+    }
+
     private var titleField: some View {
         TextField("", text: $title, axis: .vertical)
             .font(type.h3)
@@ -177,7 +268,7 @@ public struct AddEntryView: View {
                 focusedField = .body
             }
             .placeholder(when: title.isEmpty) {
-                Text("Add a title...")
+                Text("Journal title")
                     .font(type.h3)
                     .foregroundStyle(theme.mutedForeground.opacity(0.4))
             }
@@ -186,7 +277,7 @@ public struct AddEntryView: View {
     private var bodyField: some View {
         ZStack(alignment: .topLeading) {
             if text.isEmpty {
-                Text("Write your thoughts...")
+                Text("Write your entry here, or speak below to share what you're thinking & feeling...")
                     .font(type.body1)
                     .lineSpacing(type.bodyLineSpacing)
                     .foregroundStyle(theme.mutedForeground.opacity(0.5))
@@ -247,21 +338,6 @@ public struct AddEntryView: View {
         .animation(.spring(response: 0.35, dampingFraction: 0.75), value: speechService.isRecording)
         .accessibilityLabel(speechService.isRecording ? "Stop recording" : "Start voice recording")
         .accessibilityHint(speechService.isRecording ? "Double-tap to stop and insert text" : "Double-tap to record your voice")
-    }
-
-    private var saveButton: some View {
-        Button {
-            save()
-        } label: {
-            if isSaving {
-                ProgressView()
-                    .tint(theme.primary)
-            } else {
-                Image(systemName: "checkmark")
-                    .font(type.body1Bold)
-            }
-        }
-        .disabled(isSaving || text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
     }
 
     @ViewBuilder
@@ -332,26 +408,33 @@ public struct AddEntryView: View {
 // MARK: - Previews
 
 #Preview("Create Entry") {
-    NavigationStack {
-        AddEntryView(state: .create) { _, _ in }
-    }
-    .useTheme()
-    .useTypography()
+    AddEntryView(state: .create) { _, _ in }
+        .useTheme()
+        .useTypography()
 }
 
 #Preview("Edit Entry") {
-    NavigationStack {
-        AddEntryView(state: .edit(Entry.sampleEntries[0])) { _, _ in }
-    }
-    .useTheme()
-    .useTypography()
+    AddEntryView(state: .edit(Entry.sampleEntries[0])) { _, _ in }
+        .useTheme()
+        .useTypography()
 }
 
 #Preview("Create Entry • Dark") {
-    NavigationStack {
-        AddEntryView(state: .create) { _, _ in }
-    }
-    .useTheme()
-    .useTypography()
-    .preferredColorScheme(.dark)
+    AddEntryView(state: .create) { _, _ in }
+        .useTheme()
+        .useTypography()
+        .preferredColorScheme(.dark)
+}
+
+#Preview("Sheet Presentation") {
+    Color.gray.opacity(0.3)
+        .ignoresSafeArea()
+        .sheet(isPresented: .constant(true)) {
+            AddEntryView(state: .create) { _, _ in }
+                .presentationDetents([.fraction(0.95)])
+                .presentationDragIndicator(.hidden)
+                .presentationCornerRadius(32)
+        }
+        .useTheme()
+        .useTypography()
 }

@@ -12,7 +12,7 @@ struct YourEntriesView: View {
     @State private var showDeleteConfirmation: Bool = false
     @State private var entryToDelete: Entry?
     @State private var lastScrollOffset: CGFloat = 0
-    @StateObject private var scrollDebouncer = ScrollDebouncer(delay: 0.1)
+    @StateObject private var scrollDebouncer = ScrollDebouncer(delay: 0.25)
 
     private let scrollThreshold: CGFloat = 50
 
@@ -146,7 +146,7 @@ struct YourEntriesView: View {
     }
 
     private var entriesList: some View {
-        ScrollView(.vertical, showsIndicators: true) {
+        ScrollView(.vertical, showsIndicators: false) {
             LazyVStack(spacing: 32, pinnedViews: []) {
 
                 // Show error banner if there's an error (but we have cached entries)

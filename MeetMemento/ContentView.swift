@@ -134,6 +134,8 @@ public struct ContentView: View {
     @State private var showJournalSearch = false
     @State private var showSummarySheet = false
     @State private var summaryError: String?
+    @State private var activeEntryRoute: EntryRoute?
+    @State private var showEntryToast = false
 
     /// Consolidated navigation path for all routes
     @State private var navigationPath = NavigationPath()
@@ -213,19 +215,27 @@ public struct ContentView: View {
                     TopTabNavContainer(selection: $selectedTab, swipeProgress: $swipeProgress, showTopNav: false) { tab in
                         switch tab {
                         case .yourEntries:
-                            JournalView(isEmbedded: true, externalNavigationPath: $navigationPath)
+                            JournalView(
+                                isEmbedded: true,
+                                externalNavigationPath: $navigationPath,
+                                onSwipeToOpenMenu: { openDrawer() },
+                                onPresentEntry: { route in
+                                    activeEntryRoute = route
+                                }
+                            )
                         case .digDeeper:
                             AIChatView(viewModel: chatViewModel, isEmbedded: true)
                         }
                     }
 
                     // Gradient blur overlays - at ContentView level to extend to absolute screen edges
-                    // Note: Bottom fade is hidden on Insights tab so ChatInputField stays above the blur
+                    // Top fade covers area behind TopNavHeader pills for better visibility while scrolling
+                    // Bottom fade only for Journal tab (AIChatView handles its own bottom fade)
                     VStack(spacing: 0) {
-                        ScrollEdgeFade(edge: .top, height: 80 + safeAreaTop)
+                        ScrollEdgeFade(edge: .top, height: 100 + safeAreaTop)
                         Spacer()
                         if selectedTab == .yourEntries {
-                            ScrollEdgeFade(edge: .bottom, height: 120)
+                            ScrollEdgeFade(edge: .bottom, height: 60)
                         }
                     }
                     .padding(.top, -safeAreaTop)
@@ -255,7 +265,7 @@ public struct ContentView: View {
                                     if chatViewModel.hasActiveChat {
                                         showSummarySheet = true
                                     } else {
-                                        navigationPath.append(EntryRoute.create)
+                                        activeEntryRoute = .create
                                     }
                                 }
                             }
@@ -270,7 +280,7 @@ public struct ContentView: View {
                     // Hidden when no entries exist (empty state has its own CTA button)
                     if showAccessory && swipeProgress < 0.95 && !entryViewModel.entries.isEmpty {
                         PositionedNewEntryFAB(swipeProgress: swipeProgress) {
-                            navigationPath.append(EntryRoute.create)
+                            activeEntryRoute = .create
                         }
                     }
                 }
@@ -284,8 +294,12 @@ public struct ContentView: View {
                             .zIndex(100)
                     }
                 }
-                .navigationDestination(for: EntryRoute.self) { route in
-                    entryDestination(for: route)
+                .sheet(item: $activeEntryRoute) { route in
+                    entrySheet(for: route)
+                        .presentationDetents([.fraction(0.95)])
+                        .presentationDragIndicator(.hidden)
+                        .presentationCornerRadius(32)
+                        .interactiveDismissDisabled(false)
                 }
                 .navigationDestination(for: SettingsRoute.self) { route in
                     settingsDestination(for: route)
@@ -305,6 +319,16 @@ public struct ContentView: View {
             .ignoresSafeArea(edges: .all)
         }
         .ignoresSafeArea(edges: .all)
+        .overlay(alignment: .bottom) {
+            if showEntryToast {
+                JournalToast(message: "Entry saved") {
+                    showEntryToast = false
+                }
+                .padding(.bottom, 100)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: showEntryToast)
+            }
+        }
         .environmentObject(entryViewModel)
         .environment(\.selectedTab, $selectedTab)
         .environment(\.tabBarHidden, $isTabBarHidden)
@@ -354,10 +378,10 @@ public struct ContentView: View {
                             let summary = try await chatViewModel.generateChatSummary()
                             await MainActor.run {
                                 showSummarySheet = false
-                                navigationPath.append(EntryRoute.createWithContent(
+                                activeEntryRoute = .createWithContent(
                                     title: summary.title,
                                     content: summary.content
-                                ))
+                                )
                             }
                         } catch {
                             await MainActor.run {
@@ -459,28 +483,28 @@ public struct ContentView: View {
     // MARK: - Navigation Destinations
 
     @ViewBuilder
-    private func entryDestination(for route: EntryRoute) -> some View {
+    private func entrySheet(for route: EntryRoute) -> some View {
         switch route {
         case .create:
             AddEntryView(state: .create) { title, text in
                 entryViewModel.createEntry(title: title, text: text)
-                navigationPath.removeLast()
+                activeEntryRoute = nil
+                showEntryToast = true
             }
-            .toolbar(.hidden, for: .tabBar)
             .environment(\.fabVisible, false)
         case .createWithTitle(let prefillTitle):
             AddEntryView(state: .createWithTitle(prefillTitle)) { title, text in
                 entryViewModel.createEntry(title: title, text: text)
-                navigationPath.removeLast()
+                activeEntryRoute = nil
+                showEntryToast = true
             }
-            .toolbar(.hidden, for: .tabBar)
             .environment(\.fabVisible, false)
         case .createWithContent(let prefillTitle, let prefillContent):
             AddEntryView(state: .createWithContent(title: prefillTitle, content: prefillContent)) { title, text in
                 entryViewModel.createEntry(title: title, text: text)
-                navigationPath.removeLast()
+                activeEntryRoute = nil
+                showEntryToast = true
             }
-            .toolbar(.hidden, for: .tabBar)
             .environment(\.fabVisible, false)
         case .edit(let entry):
             AddEntryView(state: .edit(entry)) { title, text in
@@ -488,9 +512,9 @@ public struct ContentView: View {
                 updated.title = title
                 updated.text = text
                 entryViewModel.updateEntry(updated)
-                navigationPath.removeLast()
+                activeEntryRoute = nil
+                showEntryToast = true
             }
-            .toolbar(.hidden, for: .tabBar)
             .environment(\.fabVisible, false)
         }
     }

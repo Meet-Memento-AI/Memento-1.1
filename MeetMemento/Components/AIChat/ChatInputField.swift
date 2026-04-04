@@ -2,88 +2,133 @@
 //  ChatInputField.swift
 //  MeetMemento
 //
-//  Input field component for AI Chat interface with send button
-//  Matches Claude/ChatGPT style with send button positioned inside input field
+//  Expandable input component with 3 states:
+//  - Default: Two buttons side by side (Chat + Voice CTA)
+//  - Chat Active: Expanded text input with send button
+//  - Narrate: Full listening panel
 //
 
 import SwiftUI
 
-public struct ChatInputField: View {
+struct ChatInputField: View {
+    // MARK: - Input State Enum
+
+    enum InputState: Equatable {
+        case defaultState       // Two buttons side by side
+        case chatActive         // Expanded text input
+        case narrateActive      // Listening panel
+    }
+
+    // MARK: - Properties
+
     @Binding var text: String
-    var isSending: Bool
     var onSend: () -> Void
-    /// When false, input and all buttons are disabled (e.g. carousel preview in WelcomeView).
-    var isInteractive: Bool = true
-    /// When true, shows the journal button to access chat history
-    var hasChatHistory: Bool = false
-    /// Callback when journal button is tapped
-    var onJournalTap: (() -> Void)? = nil
+    /// Called when the input field should be dismissed (e.g., tap outside)
+    var onDismiss: (() -> Void)?
+    /// Called when the chat history button is tapped
+    var onHistoryTap: (() -> Void)?
+    /// When false, input is disabled (e.g. carousel preview in WelcomeView)
+    var isInteractive: Bool
+    /// Whether there are existing chat sessions (shows history button when true)
+    var hasExistingChats: Bool
+    /// For preview purposes - allows setting initial state
+    var initialState: InputState
 
     @Environment(\.theme) private var theme
-    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.typography) private var type
+    @State private var inputState: InputState
     @FocusState private var isFocused: Bool
-    // Use @ObservedObject for singleton to avoid creating duplicate observers
     @ObservedObject private var speechService = SpeechService.shared
     @State private var showPermissionDenied = false
     @State private var showSTTError = false
+    @State private var showListeningContent = false
+    @Namespace private var animationNamespace
 
     /// Unique identifier for this view's speech session ownership
     private let speechOwnerId = "ChatInputField"
 
-    public init(
-        text: Binding<String>,
-        isSending: Bool = false,
-        isInteractive: Bool = true,
-        hasChatHistory: Bool = false,
-        onSend: @escaping () -> Void,
-        onJournalTap: (() -> Void)? = nil
-    ) {
-        self._text = text
-        self.isSending = isSending
-        self.isInteractive = isInteractive
-        self.hasChatHistory = hasChatHistory
-        self.onSend = onSend
-        self.onJournalTap = onJournalTap
+    // MARK: - Design Constants
+
+    private let pillHeight: CGFloat = 48
+    private let cornerRadius: CGFloat = 24
+    private let expandedHeight: CGFloat = 128
+    private let listeningPanelHeight: CGFloat = 240
+    private let sendButtonSize: CGFloat = 32
+    private let backButtonSize: CGFloat = 48
+    private let listeningButtonSize: CGFloat = 40
+
+    // Colors
+    private let placeholderColor = Color(hex: "#5C6771")
+    private let purpleColor = Color(hex: "#6125B1")
+    private let purpleText = Color(hex: "#6125B2")
+    private let lightPurple = Color(hex: "#E2D5F3")
+
+    /// Whether the input is in an expanded state (chatActive or narrateActive)
+    var isExpanded: Bool {
+        inputState == .chatActive || inputState == .narrateActive
     }
 
-    // MARK: - Computed Properties
+    // MARK: - Initializer
 
-    /// Determines if the journal button should be visible
-    /// Hidden when user is actively typing (focused or has text) for a smoother experience
-    private var shouldShowJournalButton: Bool {
-        hasChatHistory && !isFocused && text.isEmpty
+    init(
+        text: Binding<String>,
+        onSend: @escaping () -> Void = {},
+        onDismiss: (() -> Void)? = nil,
+        onHistoryTap: (() -> Void)? = nil,
+        isInteractive: Bool = true,
+        hasExistingChats: Bool = false,
+        initialState: InputState = .defaultState
+    ) {
+        self._text = text
+        self.onSend = onSend
+        self.onDismiss = onDismiss
+        self.onHistoryTap = onHistoryTap
+        self.isInteractive = isInteractive
+        self.hasExistingChats = hasExistingChats
+        self.initialState = initialState
+        self._inputState = State(initialValue: initialState)
     }
 
     // MARK: - Body
 
-    public var body: some View {
-        HStack(spacing: 12) {
-            if shouldShowJournalButton {
-                journalButton
-                    .transition(.scale.combined(with: .opacity))
-            }
+    var body: some View {
+        Group {
+            switch inputState {
+            case .defaultState:
+                defaultView
+                    .transition(.opacity)
 
-            ZStack(alignment: .bottomTrailing) {
-                textInput
-                buttonRow
+            case .chatActive:
+                chatActiveView
+                    .transition(.opacity)
+
+            case .narrateActive:
+                narrateActiveView
+                    .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .bottom)))
             }
         }
-        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: shouldShowJournalButton)
+        .animation(.spring(response: 0.35, dampingFraction: 0.75), value: inputState)
         .allowsHitTesting(isInteractive)
-        .padding(.horizontal, 20)
-        .padding(.vertical, 16)
         .onChange(of: speechService.isRecording) { oldValue, newValue in
-            // Only process if this view owns the session
             guard speechService.isOwner(speechOwnerId) else { return }
             if oldValue == true && newValue == false && !speechService.transcribedText.isEmpty {
                 insertTranscribedText(speechService.transcribedText)
             }
         }
         .onChange(of: speechService.transcribedText) { _, newText in
-            // Only process if this view owns the session
             guard speechService.isOwner(speechOwnerId) else { return }
             if !newText.isEmpty && !speechService.isRecording {
                 insertTranscribedText(newText)
+            }
+        }
+        .onChange(of: isFocused) { _, newValue in
+            // Return to default state when focus is lost in chatActive state
+            if !newValue && inputState == .chatActive {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                    text = ""
+                    inputState = .defaultState
+                }
+                onDismiss?()
             }
         }
         .modifier(SpeechAlertsModifier(
@@ -94,236 +139,438 @@ public struct ChatInputField: View {
         ))
     }
 
-    // MARK: - Trailing Padding
+    // MARK: - Dismiss Method (Public)
 
-    private var trailingPadding: CGFloat {
-        text.isEmpty ? 100 : 52
-    }
-
-    // MARK: - Text Input
-
-    private var textInput: some View {
-        ZStack(alignment: .center) {
-            if speechService.isRecording {
-                VoiceWaveView(audioLevel: speechService.audioLevel)
-                    .frame(height: 24)
-                    .padding(.leading, 16)
-                    .padding(.trailing, 56)
-                    .padding(.vertical, 16)
-                    .transition(.opacity)
-            } else {
-                defaultInputView
-                    .transition(.opacity)
-            }
+    /// Call this method to dismiss the input field and return to default state
+    func dismiss() {
+        if inputState == .chatActive {
+            text = ""
+            isFocused = false
         }
-        .frame(maxWidth: .infinity, minHeight: 56)
-        .background(inputFieldBackground)
-        .animation(.easeInOut(duration: 0.2), value: speechService.isRecording)
+        inputState = .defaultState
+        onDismiss?()
     }
 
-    // MARK: - Input Field Background
+    // MARK: - State 1: Default View
+
+    private var defaultView: some View {
+        HStack(spacing: 12) {
+            // HISTORY PILL: Only shown when hasExistingChats
+            if hasExistingChats {
+                historyPill()
+                    .transition(.scale.combined(with: .opacity))
+            }
+
+            // LEFT PILL: "Chat with Memento"
+            leftPill()
+
+            // RIGHT PILL: Voice button (starts listening directly)
+            rightPill()
+        }
+    }
+
+    // MARK: - Left Pill (Chat with Memento)
 
     @ViewBuilder
-    private var inputFieldBackground: some View {
-        if #available(iOS 26.0, *) {
-            // iOS 26: Liquid glass effect with higher frost (semi-transparent fill adds opacity)
-            RoundedRectangle(cornerRadius: theme.radius.xl, style: .continuous)
-                .fill(colorScheme == .dark ? Color.white.opacity(0.4) : Color.black.opacity(0.1))
-                .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: theme.radius.xl, style: .continuous))
-        } else {
-            // iOS 18+: Light grey background
-            RoundedRectangle(cornerRadius: theme.radius.xl, style: .continuous)
-                .fill(theme.inputBackground)
+    private func leftPill() -> some View {
+        Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                inputState = .chatActive
+            }
+        } label: {
+            HStack(spacing: 12) {
+                Image("LaunchLogo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 20, height: 20)
+                Text("Chat with Memento")
+                    .font(type.h6)
+                    .foregroundStyle(theme.mutedForeground)
+            }
+            .frame(height: pillHeight)
         }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity)
+        .frame(height: pillHeight)
+        .background(
+            glassBackground(cornerRadius: cornerRadius)
+                .matchedGeometryEffect(id: "chatBackground", in: animationNamespace)
+        )
+        .contentShape(Rectangle())
+        .accessibilityLabel("Chat with Memento")
     }
 
-    // MARK: - Default Input View
+    // MARK: - Right Pill (Voice Button - starts listening directly)
 
-    private var defaultInputView: some View {
-        ZStack(alignment: .topLeading) {
-            if text.isEmpty {
-                Text("Chat with Memento")
-                    .typographyBody1()
-                    .foregroundStyle(theme.mutedForeground)
-                    .padding(.leading, 16)
-                    .padding(.top, 16)
-            }
+    @ViewBuilder
+    private func rightPill() -> some View {
+        Button {
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            startListening()
+        } label: {
+            voiceWaveIcon(color: theme.foreground)
+                .frame(height: pillHeight)
+        }
+        .buttonStyle(.plain)
+        .frame(width: pillHeight, height: pillHeight)
+        .background(
+            glassBackground(cornerRadius: cornerRadius)
+                .matchedGeometryEffect(id: "narrateBackground", in: animationNamespace)
+        )
+        .contentShape(Rectangle())
+        .accessibilityLabel("Start voice narration")
+    }
 
-            TextField("", text: $text, axis: .vertical)
-                .typographyBody1()
+    // MARK: - History Icon
+
+    private var historyIcon: some View {
+        Image(systemName: "text.document")
+            .font(.system(size: 18, weight: .regular))
+            .foregroundStyle(theme.foreground)
+    }
+
+    // MARK: - History Pill (Chat History Button)
+
+    @ViewBuilder
+    private func historyPill() -> some View {
+        Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            onHistoryTap?()
+        } label: {
+            historyIcon
+                .frame(width: pillHeight, height: pillHeight)
+        }
+        .buttonStyle(.plain)
+        .frame(width: pillHeight, height: pillHeight)
+        .background(glassBackground(cornerRadius: cornerRadius))
+        .contentShape(Rectangle())
+        .accessibilityLabel("Chat history")
+    }
+
+    // MARK: - State 2: Chat Active View
+
+    private var chatActiveView: some View {
+        VStack(alignment: .trailing, spacing: 8) {
+            // Text input area with styled placeholder
+            TextField(
+                "",
+                text: $text,
+                prompt: Text("Chat with Memento")
+                    .foregroundStyle(theme.foreground.opacity(0.6)),
+                axis: .vertical
+            )
+                .font(type.body1)
                 .foregroundStyle(theme.foreground)
                 .focused($isFocused)
                 .lineLimit(1...5)
                 .textInputAutocapitalization(.sentences)
-                .submitLabel(.send)
-                .disabled(!isInteractive)
-                .onSubmit {
-                    guard isInteractive, isSendButtonEnabled else { return }
-                    onSend()
-                }
-                .padding(.leading, 16)
-                .padding(.trailing, trailingPadding)
-                .padding(.top, 16)
-                .padding(.bottom, 16)
-                .animation(.easeInOut(duration: 0.2), value: text.isEmpty)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+
+            Spacer(minLength: 0)
+
+            // Send button
+            Button(action: sendMessage) {
+                Image(systemName: "arrow.up")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(width: sendButtonSize, height: sendButtonSize)
+                    .background(
+                        Circle()
+                            .fill(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                  ? purpleColor.opacity(0.5)
+                                  : purpleColor)
+                    )
+            }
+            .buttonStyle(.plain)
+            .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .accessibilityLabel("Send message")
+        }
+        .padding(16)
+        .frame(height: expandedHeight)
+        .frame(maxWidth: .infinity)
+        .background(
+            glassBackground(cornerRadius: cornerRadius)
+                .matchedGeometryEffect(id: "chatBackground", in: animationNamespace)
+        )
+        .onAppear {
+            isFocused = true
         }
     }
 
-    // MARK: - Button Row
+    // MARK: - State 4: Narrate Active View (Listening)
 
-    private var buttonRow: some View {
-        HStack(spacing: 16) {
-            if speechService.isRecording {
-                stopButton
-                    .transition(.scale.combined(with: .opacity))
-            } else {
-                if text.isEmpty {
-                    microphoneButton
-                        .transition(.scale.combined(with: .opacity))
+    private var narrateActiveView: some View {
+        VStack(spacing: 0) {
+            // Top row: Back + Done buttons
+            HStack {
+                // Back button with single chevron
+                Button {
+                    cancelListening()
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(purpleColor)
+                        .frame(width: listeningButtonSize, height: listeningButtonSize)
+                        .background(
+                            Circle()
+                                .fill(lightPurple)
+                        )
+                        .contentShape(Circle())
                 }
-                sendButton
+                .buttonStyle(.plain)
+                .contentShape(Circle())
+                .accessibilityLabel("Cancel recording")
+                .accessibilityHint("Double-tap to cancel and go back")
+
+                Spacer()
+
+                // Done button with checkmark
+                Button {
+                    confirmListening()
+                } label: {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(width: listeningButtonSize, height: listeningButtonSize)
+                        .background(
+                            Circle()
+                                .fill(purpleColor)
+                        )
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .contentShape(Circle())
+                .accessibilityLabel("Confirm recording")
+                .accessibilityHint("Double-tap to stop recording and send")
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 12)
+            .opacity(showListeningContent ? 1 : 0)
+            .scaleEffect(showListeningContent ? 1 : 0.8)
+
+            Spacer()
+
+            // Center: Animated wave bars
+            ListeningDotsView(audioLevel: speechService.audioLevel)
+                .opacity(showListeningContent ? 1 : 0)
+                .scaleEffect(showListeningContent ? 1 : 0.5)
+
+            Spacer()
+
+            // Label
+            Text("Narrate")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(purpleText)
+                .padding(.bottom, 24)
+                .opacity(showListeningContent ? 1 : 0)
+        }
+        .frame(height: listeningPanelHeight)
+        .frame(maxWidth: .infinity)
+        .background(
+            glassBackground(cornerRadius: cornerRadius)
+                .matchedGeometryEffect(id: "narrateBackground", in: animationNamespace)
+        )
+        .onAppear {
+            // Delay content appearance until panel has expanded
+            withAnimation(.easeOut(duration: 0.3).delay(0.15)) {
+                showListeningContent = true
             }
         }
-        .animation(.easeInOut(duration: 0.2), value: text.isEmpty)
-        .padding(.trailing, 8)
-        .padding(.bottom, 10)
-    }
-    
-    // MARK: - Microphone Button
-    
-    private var microphoneButton: some View {
-        Button {
-            guard isInteractive else { return }
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            Task {
-                do {
-                    try await speechService.startRecording(ownerId: speechOwnerId)
-                } catch let error as SpeechService.SpeechError {
-                    if case .permissionDenied = error {
-                        showPermissionDenied = true
-                    } else {
-                        showSTTError = true
-                    }
-                } catch {
-                    showSTTError = true
-                }
-            }
-        } label: {
-            Image(systemName: "mic")
-                .font(.system(size: 20, weight: .medium))
-                .foregroundStyle(theme.mutedForeground)
-                .frame(width: 36, height: 36)
-                .background(Color.clear)
+        .onDisappear {
+            showListeningContent = false
         }
-        .disabled(speechService.isProcessing)
-        .accessibilityLabel("Start voice input")
-        .accessibilityHint("Double-tap to record your voice")
-    }
-    
-    // MARK: - Stop Button
-    
-    private var stopButton: some View {
-        Button {
-            guard isInteractive else { return }
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            Task {
-                await speechService.stopRecording()
-            }
-        } label: {
-            Image(systemName: "square.fill")
-                .font(.system(size: 16, weight: .bold))
-                .foregroundColor(theme.destructiveForeground)
-                .frame(width: 36, height: 36)
-                .background(
-                    Circle()
-                        .fill(theme.destructive)
-                )
-        }
-        .accessibilityLabel("Stop voice input")
-        .accessibilityHint("Double-tap to stop and insert text")
     }
 
-    // MARK: - Journal Button
+    // MARK: - Voice Wave Icon
 
-    private var journalButton: some View {
-        Button {
-            guard isInteractive else { return }
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            onJournalTap?()
-        } label: {
-            Image(systemName: "text.book.closed")
-                .font(.system(size: 20, weight: .medium))
-                .foregroundStyle(theme.mutedForeground)
-                .frame(width: 44, height: 44)
-                .background(journalButtonBackground)
+    private func voiceWaveIcon(color: Color) -> some View {
+        HStack(spacing: 3) {
+            ForEach(0..<5, id: \.self) { index in
+                RoundedRectangle(cornerRadius: 1)
+                    .fill(color)
+                    .frame(width: 3, height: barHeight(for: index))
+            }
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Chat history")
-        .accessibilityHint("Double-tap to view past conversations")
     }
+
+    private func barHeight(for index: Int) -> CGFloat {
+        // Create a wave pattern: shorter on edges, taller in middle
+        let heights: [CGFloat] = [8, 14, 18, 14, 8]
+        return heights[index]
+    }
+
+    // MARK: - Glass Background
 
     @ViewBuilder
-    private var journalButtonBackground: some View {
+    private func glassBackground(cornerRadius: CGFloat) -> some View {
         if #available(iOS 26.0, *) {
-            Circle()
-                .fill(colorScheme == .dark ? Color.white.opacity(0.4) : Color.black.opacity(0.1))
-                .glassEffect(.regular.interactive(), in: Circle())
+            ZStack {
+                // Theme-aware frost layer for readability
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(theme.glassFallback.opacity(0.9))
+
+                // Liquid glass effect on top
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(.clear)
+                    .glassEffect(
+                        .regular.interactive(),
+                        in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    )
+            }
+            .shadow(
+                color: Color.black.opacity(0.08),
+                radius: 12,
+                x: 0,
+                y: 4
+            )
         } else {
-            Circle()
-                .fill(theme.inputBackground)
+            // Theme-aware solid background for pre-iOS 26
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(theme.glassFallback)
+                .shadow(
+                    color: Color.black.opacity(0.08),
+                    radius: 12,
+                    x: 0,
+                    y: 4
+                )
         }
     }
 
-    // MARK: - Send Button
-    
-    private var sendButton: some View {
-        Button {
-            guard isInteractive else { return }
-            onSend()
-        } label: {
-            ZStack {
-                if isSending {
-                    ProgressView()
-                        .controlSize(.small)
-                        .tint(theme.primaryForeground)
+    // MARK: - Speech Actions
+
+    private func startListening() {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+
+        // Transition to listening panel
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+            inputState = .narrateActive
+        }
+
+        // Start recording
+        Task {
+            do {
+                try await speechService.startRecording(ownerId: speechOwnerId)
+            } catch let error as SpeechService.SpeechError {
+                // Fade out and return to default on error
+                withAnimation(.easeOut(duration: 0.15)) {
+                    showListeningContent = false
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                        inputState = .defaultState
+                    }
+                }
+                if case .permissionDenied = error {
+                    showPermissionDenied = true
                 } else {
-                    Image(systemName: "arrow.up")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(isSendButtonEnabled ? theme.primaryForeground : theme.mutedForeground)
+                    showSTTError = true
+                }
+            } catch {
+                withAnimation(.easeOut(duration: 0.15)) {
+                    showListeningContent = false
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                        inputState = .defaultState
+                    }
+                }
+                showSTTError = true
+            }
+        }
+    }
+
+    private func cancelListening() {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+
+        // Fade out content first
+        withAnimation(.easeOut(duration: 0.15)) {
+            showListeningContent = false
+        }
+
+        // Then transition panel after content fades
+        Task {
+            await speechService.stopRecording()
+            speechService.clearTranscription()
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                inputState = .defaultState
+            }
+        }
+    }
+
+    private func confirmListening() {
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+
+        // Fade out content first
+        withAnimation(.easeOut(duration: 0.15)) {
+            showListeningContent = false
+        }
+
+        Task {
+            await speechService.stopRecording()
+            // Text will be inserted via onChange handler
+            // But if transcription is empty after processing, we need to return to default
+            // Wait a moment for transcription to be processed
+            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+
+            // If still in narrateActive and no transcription was processed, return to default
+            await MainActor.run {
+                if inputState == .narrateActive {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                        inputState = .defaultState
+                    }
                 }
             }
-            .frame(width: 36, height: 36)
-            .background(
-                Circle()
-                    .fill(
-                        isSendButtonEnabled
-                            ? theme.primary
-                            : theme.muted
-                    )
-            )
         }
-        .disabled(!isInteractive || !isSendButtonEnabled || isSending)
-        .animation(.easeInOut(duration: 0.2), value: isSendButtonEnabled)
-        .accessibilityLabel(isSending ? "Sending message" : "Send message")
-        .accessibilityHint("Double-tap to send")
     }
 
-    private var isSendButtonEnabled: Bool {
-        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    private func sendMessage() {
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        onSend()
+        // Return to default state after sending
+        text = ""
+        inputState = .defaultState
+        isFocused = false
     }
 
     private func insertTranscribedText(_ transcribedText: String) {
         let trimmed = transcribedText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
+        guard !trimmed.isEmpty else {
+            // Fade out content first, then transition
+            withAnimation(.easeOut(duration: 0.15)) {
+                showListeningContent = false
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                inputState = .defaultState
+            }
+            return
+        }
+
         if text.isEmpty {
             text = trimmed
         } else {
             text += "\n\n" + trimmed
         }
+
         // Clear transcription buffer and release ownership
         speechService.clearTranscription()
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
+
+        // Send the message
         onSend()
+        text = ""
+
+        // Smooth transition back to default
+        withAnimation(.easeOut(duration: 0.15)) {
+            showListeningContent = false
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            inputState = .defaultState
+        }
     }
 }
 
@@ -364,111 +611,126 @@ private struct SpeechAlertsModifier: ViewModifier {
     }
 }
 
-// MARK: - Voice Wave View (voice-reactive)
-private struct VoiceWaveView: View {
-    let audioLevel: Float
-    private let barCount = 30
-    private let minHeight: CGFloat = 4
-    private let maxHeight: CGFloat = 20
-    private let barWidth: CGFloat = 4
-    private let barSpacing: CGFloat = 4
-
-    private static func barVariation(for index: Int) -> CGFloat {
-        let seed = sin(CGFloat(index) * 0.7) * 0.5 + 0.5
-        return 0.7 + 0.3 * seed
-    }
-
-    @Environment(\.theme) private var theme
-
-    var body: some View {
-        HStack(spacing: barSpacing) {
-            ForEach(0..<barCount, id: \.self) { index in
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(theme.mutedForeground)
-                    .frame(width: barWidth, height: barHeight(for: index))
-                    .animation(.easeOut(duration: 0.12), value: audioLevel)
-            }
-        }
-    }
-
-    private func barHeight(for index: Int) -> CGFloat {
-        let level = CGFloat(audioLevel)
-        let variation = Self.barVariation(for: index)
-        let amplitude = (maxHeight - minHeight) * level * variation
-        return max(minHeight, minHeight + amplitude)
-    }
-}
-
 // MARK: - Previews
 
-#Preview("Input Field - No History") {
-    @Previewable @State var text = ""
-
+#Preview("Default State") {
     VStack {
         Spacer()
-        ChatInputField(text: $text, onSend: {
-            print("Send: \(text)")
-        })
+        ChatInputField(text: .constant(""), onSend: {})
+            .padding(.horizontal, 20)
     }
     .useTheme()
     .useTypography()
 }
 
-#Preview("Input Field - With History") {
-    @Previewable @State var text = ""
+#Preview("Chat Active") {
+    ChatInputFieldPreview(initialState: .chatActive)
+        .useTheme()
+        .useTypography()
+}
 
+#Preview("Narrate Active") {
+    ChatInputFieldPreview(initialState: .narrateActive)
+        .useTheme()
+        .useTypography()
+}
+
+#Preview("Dark Mode - Default") {
+    VStack {
+        Spacer()
+        ChatInputField(text: .constant(""), onSend: {})
+            .padding(.horizontal, 20)
+    }
+    .useTheme()
+    .useTypography()
+    .preferredColorScheme(.dark)
+}
+
+#Preview("Dark Mode - Chat Active") {
+    ChatInputFieldPreview(initialState: .chatActive)
+        .useTheme()
+        .useTypography()
+        .preferredColorScheme(.dark)
+}
+
+#Preview("Interactive") {
+    ChatInputFieldInteractivePreview()
+        .useTheme()
+        .useTypography()
+}
+
+#Preview("With Chat History") {
     VStack {
         Spacer()
         ChatInputField(
-            text: $text,
-            hasChatHistory: true,
-            onSend: {
-                print("Send: \(text)")
-            },
-            onJournalTap: {
-                print("Journal tapped")
-            }
+            text: .constant(""),
+            onSend: {},
+            onHistoryTap: { print("History tapped") },
+            hasExistingChats: true
         )
+        .padding(.horizontal, 20)
     }
     .useTheme()
     .useTypography()
 }
 
-#Preview("Input Field - Active Typing") {
-    @Previewable @State var text = "What patterns do you see in my recent entries?"
-
+#Preview("With Chat History - Dark Mode") {
     VStack {
         Spacer()
-        Text("Journal button hidden while typing")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .padding(.bottom, 8)
-        // Note: Journal button is hidden when text is not empty or field is focused
-        // This provides a smoother typing experience with full-width input
         ChatInputField(
-            text: $text,
-            hasChatHistory: true,
-            onSend: {
-                print("Send: \(text)")
-            },
-            onJournalTap: {
-                print("Journal tapped")
-            }
+            text: .constant(""),
+            onSend: {},
+            onHistoryTap: { print("History tapped") },
+            hasExistingChats: true
         )
+        .padding(.horizontal, 20)
     }
     .useTheme()
     .useTypography()
+    .preferredColorScheme(.dark)
 }
 
-#Preview("Input Field Recording") {
-    @Previewable @State var text = ""
+private struct ChatInputFieldPreview: View {
+    let initialState: ChatInputField.InputState
+    @State private var text = ""
 
-    VStack {
-        Spacer()
-        // Note: Preview won't auto-trigger recording state unless we expose it,
-        // but user can interact in preview
-        ChatInputField(text: $text, onSend: {})
+    var body: some View {
+        VStack {
+            Spacer()
+            ChatInputField(
+                text: $text,
+                onSend: { print("Send: \(text)") },
+                initialState: initialState
+            )
+            .padding(.horizontal, 20)
+        }
     }
-    .useTheme()
-    .useTypography()
+}
+
+private struct ChatInputFieldInteractivePreview: View {
+    @State private var text = ""
+
+    var body: some View {
+        VStack {
+            Spacer()
+
+            Text("Tap buttons to navigate states")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.bottom, 20)
+
+            ChatInputField(
+                text: $text,
+                onSend: {
+                    print("Sent: \(text)")
+                    text = ""
+                },
+                onHistoryTap: {
+                    print("History tapped")
+                },
+                hasExistingChats: true
+            )
+            .padding(.horizontal, 20)
+        }
+    }
 }

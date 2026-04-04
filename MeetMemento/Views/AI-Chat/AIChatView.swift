@@ -59,6 +59,13 @@ public struct AIChatView: View {
                             Color.clear.frame(height: 88 + keyboardBottomPadding(geometry: geometry))
                         }
 
+                    // Blur overlay when keyboard is visible to focus attention on chat
+                    if keyboardObserver.isKeyboardVisible {
+                        Rectangle()
+                            .fill(.ultraThinMaterial)
+                            .ignoresSafeArea()
+                            .allowsHitTesting(false)
+                    }
 
                     // Input area - floats at bottom with no background
                     VStack {
@@ -216,11 +223,12 @@ public struct AIChatView: View {
                     scrollToLatestMessage()
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
+            .scrollContentBackground(.hidden)
+            .background(theme.background)
             .onTapGesture {
                 dismissKeyboard()
             }
-            .scrollContentBackground(.hidden)
-            .background(theme.background)
         }
     }
     
@@ -237,12 +245,12 @@ public struct AIChatView: View {
     // MARK: - Floating Input Area
 
     private var floatingInputArea: some View {
-        ChatInputField(
-            text: $viewModel.inputText,
+        AIChatFooter(
+            inputText: $viewModel.inputText,
             isSending: viewModel.isLoading,
-            hasChatHistory: !viewModel.sessions.isEmpty,
             onSend: { viewModel.sendMessage() },
-            onJournalTap: { showChatHistorySheet = true }
+            hasExistingChats: !viewModel.sessions.isEmpty,
+            onHistoryTap: { showChatHistorySheet = true }
         )
     }
 
@@ -288,9 +296,9 @@ public struct AIChatView: View {
 
     private func keyboardBottomPadding(geometry: GeometryProxy) -> CGFloat {
         if keyboardObserver.isKeyboardVisible {
-            // Keyboard is visible - position input above keyboard
+            // Keyboard is visible - position input above keyboard with 16px extra spacing
             let safeArea = geometry.safeAreaInsets.bottom
-            return max(keyboardObserver.keyboardHeight - safeArea, 0)
+            return max(keyboardObserver.keyboardHeight - safeArea, 0) + 16
         } else {
             // Keyboard hidden - fixed 32px from bottom of screen
             return 32

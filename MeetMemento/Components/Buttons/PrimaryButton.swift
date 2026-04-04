@@ -29,12 +29,11 @@ public struct PrimaryButton: View {
                     .typographyH5()
                 if isLoading { ProgressView().tint(theme.primaryForeground) }
             }
-            .padding(.vertical, 12)
-            .padding(.horizontal, 16)
+            .frame(height: 48)
             .frame(maxWidth: .infinity)
             .foregroundStyle(theme.primaryForeground)
             .background(theme.primary)
-            .clipShape(RoundedRectangle(cornerRadius: theme.radius.xl, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: theme.radius.button, style: .continuous))
         }
         .buttonStyle(PrimaryButtonPressStyle())
     }

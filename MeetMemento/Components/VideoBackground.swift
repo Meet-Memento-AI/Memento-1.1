@@ -12,16 +12,27 @@ import AVKit
 struct VideoBackground: UIViewRepresentable {
     let videoName: String
     let videoExtension: String
+    @Binding var isVideoReady: Bool
+    @Binding var playbackProgress: Double
 
-    init(videoName: String, videoExtension: String = "mp4") {
+    init(
+        videoName: String,
+        videoExtension: String = "mp4",
+        isVideoReady: Binding<Bool> = .constant(true),
+        playbackProgress: Binding<Double> = .constant(0)
+    ) {
         self.videoName = videoName
         self.videoExtension = videoExtension
+        self._isVideoReady = isVideoReady
+        self._playbackProgress = playbackProgress
     }
 
     func makeUIView(context: Context) -> PlayerUIView {
         let view = PlayerUIView(frame: .zero)
         view.videoName = videoName
         view.videoExtension = videoExtension
+        view.isVideoReadyBinding = $isVideoReady
+        view.playbackProgressBinding = $playbackProgress
         return view
     }
 
@@ -31,6 +42,8 @@ struct VideoBackground: UIViewRepresentable {
 class PlayerUIView: UIView {
     var videoName: String = ""
     var videoExtension: String = "mp4"
+    var isVideoReadyBinding: Binding<Bool>?
+    var playbackProgressBinding: Binding<Double>?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -47,6 +60,8 @@ class PlayerUIView: UIView {
     private var playerLayer: AVPlayerLayer?
     private var playerLooper: AVPlayerLooper?
     private var queuePlayer: AVQueuePlayer?
+    private var timeObserver: Any?
+    private var videoDuration: Double = 0
 
     override func layoutSubviews() {
         super.layoutSubviews()
@@ -83,9 +98,47 @@ class PlayerUIView: UIView {
         // Mute and play
         queuePlayer.isMuted = true
         queuePlayer.play()
+
+        // Get video duration and setup progress tracking
+        Task { @MainActor in
+            do {
+                let duration = try await asset.load(.duration)
+                self.videoDuration = CMTimeGetSeconds(duration)
+                self.setupTimeObserver()
+            } catch {
+                #if DEBUG
+                print("⚠️ VideoBackground: Failed to load duration: \(error)")
+                #endif
+            }
+        }
+    }
+
+    private func setupTimeObserver() {
+        guard let player = queuePlayer, videoDuration > 0 else { return }
+
+        // Update progress ~8 times per second (sufficient for blur animation)
+        let interval = CMTime(seconds: 1.0 / 8.0, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
+
+        timeObserver = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
+            guard let self = self else { return }
+
+            let currentTime = CMTimeGetSeconds(time)
+            let progress = min(1.0, max(0.0, currentTime / self.videoDuration))
+
+            // Update progress binding
+            self.playbackProgressBinding?.wrappedValue = progress
+
+            // Mark video as ready on first progress update
+            if self.isVideoReadyBinding?.wrappedValue == false {
+                self.isVideoReadyBinding?.wrappedValue = true
+            }
+        }
     }
 
     deinit {
+        if let observer = timeObserver {
+            queuePlayer?.removeTimeObserver(observer)
+        }
         queuePlayer?.pause()
         queuePlayer = nil
         playerLooper = nil

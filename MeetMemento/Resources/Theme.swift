@@ -25,6 +25,14 @@ extension Color {
 /// These tokens provide a structured color palette with defined scales for gray and primary colors.
 /// All colors meet WCAG AA accessibility standards for contrast ratios.
 
+/// Shadow specifications for glass elements
+struct GlassShadow {
+    static let blur: CGFloat = 16
+    static let offsetY: CGFloat = 16
+    static let opacity: Double = 0.32
+    static let color = Color.gray
+}
+
 /// Gray scale color tokens - neutral colors for backgrounds, borders, and text
 struct GrayScale {
     static let gray50  = Color(hex: "#F9FBFC")
@@ -68,8 +76,9 @@ struct Theme {
     struct Radius {
         let sm: CGFloat = 8
         let md: CGFloat = 12
-        let lg: CGFloat = 24
-        let xl: CGFloat = 32
+        let button: CGFloat = 16  // Standard button corner radius
+        let lg: CGFloat = 20    // For circular buttons (40pt diameter)
+        let xl: CGFloat = 24    // For pills (48pt height)
         let round: CGFloat = 999
     }
     let radius = Radius()
@@ -165,6 +174,11 @@ struct Theme {
     // Glass effect borders
     let glassBorder: Color
 
+    // Glass effect fill colors (for iOS 26+ liquid glass)
+    let glassFill: Color
+    // Fallback card background for non-glass devices
+    let glassFallback: Color
+
     // Emotion colors (for charts)
     let emotionJoy: Color
     let emotionSadness: Color
@@ -179,7 +193,7 @@ struct Theme {
         foreground: GrayScale.gray900,
         card: BaseColors.white,
         cardForeground: GrayScale.gray900,
-        cardBackground: BaseColors.white,
+        cardBackground: GrayScale.gray50,
         popover: BaseColors.white,
         popoverForeground: GrayScale.gray900,
         primary: PrimaryScale.primary500,
@@ -232,6 +246,8 @@ struct Theme {
         overlayText: BaseColors.white,
         overlayTextSecondary: BaseColors.white.opacity(0.8),
         glassBorder: BaseColors.white.opacity(0.2),
+        glassFill: Color.black.opacity(0.1),
+        glassFallback: BaseColors.white,
         emotionJoy: Color(hex: "#7FE87D"),
         emotionSadness: Color(hex: "#5DD4E8"),
         emotionAnger: Color(hex: "#F19B8D"),
@@ -257,7 +273,7 @@ struct Theme {
         accentForeground: GrayScale.gray900,
         destructive: Color(hex: "#FF4D6A"),
         destructiveForeground: GrayScale.gray50,
-        border: GrayScale.gray300,
+        border: GrayScale.gray800,
         input: GrayScale.gray700,
         inputBackground: GrayScale.gray900,
         switchBackground: GrayScale.gray600,
@@ -297,11 +313,14 @@ struct Theme {
         overlayText: BaseColors.white,
         overlayTextSecondary: BaseColors.white.opacity(0.8),
         glassBorder: BaseColors.white.opacity(0.2),
-        emotionJoy: Color(hex: "#7FE87D"),
-        emotionSadness: Color(hex: "#5DD4E8"),
-        emotionAnger: Color(hex: "#F19B8D"),
-        emotionFear: Color(hex: "#B8B0E8"),
-        emotionNeutral: Color(hex: "#A0D8F0")
+        glassFill: Color.white.opacity(0.15),
+        glassFallback: GrayScale.gray800,
+        // Emotion colors adjusted for dark mode visibility (slightly brighter)
+        emotionJoy: Color(hex: "#8FFF8D"),
+        emotionSadness: Color(hex: "#6DE4F8"),
+        emotionAnger: Color(hex: "#FFAB9D"),
+        emotionFear: Color(hex: "#C8C0F8"),
+        emotionNeutral: Color(hex: "#B0E8FF")
     )
 }
 
@@ -321,6 +340,7 @@ extension EnvironmentValues {
 struct ThemeProvider: ViewModifier {
     @Environment(\.colorScheme) private var systemColorScheme
     @State private var userPreference: AppThemePreference = .system
+    @State private var themeObserver: NSObjectProtocol?
 
     func body(content: Content) -> some View {
         let effectiveTheme: Theme = {
@@ -339,7 +359,19 @@ struct ThemeProvider: ViewModifier {
             .preferredColorScheme(colorSchemeOverride)
             .onAppear {
                 loadThemePreference()
-                observeThemeChanges()
+                themeObserver = NotificationCenter.default.addObserver(
+                    forName: .themePreferenceChanged,
+                    object: nil,
+                    queue: .main
+                ) { _ in
+                    loadThemePreference()
+                }
+            }
+            .onDisappear {
+                if let observer = themeObserver {
+                    NotificationCenter.default.removeObserver(observer)
+                    themeObserver = nil
+                }
             }
     }
 
@@ -356,16 +388,6 @@ struct ThemeProvider: ViewModifier {
 
     private func loadThemePreference() {
         userPreference = PreferencesService.shared.themePreference
-    }
-
-    private func observeThemeChanges() {
-        NotificationCenter.default.addObserver(
-            forName: .themePreferenceChanged,
-            object: nil,
-            queue: .main
-        ) { _ in
-            loadThemePreference()
-        }
     }
 }
 

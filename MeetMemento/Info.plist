@@ -35,15 +35,6 @@
 		<string>Manrope-Medium.ttf</string>
 		<string>Manrope-Bold.ttf</string>
 	</array>
-	<key>UILaunchScreen</key>
-	<dict>
-		<key>UIColorName</key>
-		<string>LaunchColor</string>
-		<key>UIImageName</key>
-		<string>LaunchLogo</string>
-		<key>UILaunchScreen</key>
-		<dict/>
-	</dict>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Memento uses Face ID to protect your private journal entries.</string>
 	<key>NSMicrophoneUsageDescription</key>

@@ -76,9 +76,9 @@ public struct TopNavHeader: View {
     @ViewBuilder
     private var iconButtonBackground: some View {
         if #available(iOS 26.0, *) {
-            // iOS 26: Liquid glass with interactive feedback
+            // iOS 26: Pure liquid glass (no fill)
             Circle()
-                .fill(Color.clear)
+                .fill(.clear)
                 .glassEffect(.regular.interactive(), in: Circle())
         } else {
             // iOS 18+: Ultra thin material fallback
@@ -86,7 +86,7 @@ public struct TopNavHeader: View {
                 .fill(.ultraThinMaterial)
                 .overlay(
                     Circle()
-                        .strokeBorder(Color.white.opacity(0.2), lineWidth: 0.5)
+                        .strokeBorder(theme.glassBorder, lineWidth: 0.5)
                 )
         }
     }
