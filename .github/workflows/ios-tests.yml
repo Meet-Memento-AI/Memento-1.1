@@ -11,6 +11,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Create Secrets.swift stub for CI
+        run: |
+          cat > MeetMemento/Secrets.swift << 'EOF'
+          struct Secrets {
+              static let supabaseUrl = "https://placeholder.supabase.co"
+              static let supabaseAnonKey = "placeholder_key_for_ci_build"
+          }
+          EOF
+
       - name: Build and test (simulator)
         run: |
           xcodebuild \
