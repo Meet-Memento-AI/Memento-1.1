@@ -105,6 +105,7 @@ struct NarrateButton: View {
 
     @ViewBuilder
     private var glassBackground: some View {
+        #if canImport(FoundationModels)
         if #available(iOS 26.0, *) {
             Circle()
                 .fill(theme.glassFill)
@@ -116,15 +117,23 @@ struct NarrateButton: View {
                     y: GlassShadow.offsetY
                 )
         } else {
-            Circle()
-                .fill(.ultraThinMaterial)
-                .shadow(
-                    color: GlassShadow.color.opacity(GlassShadow.opacity),
-                    radius: GlassShadow.blur,
-                    x: 0,
-                    y: GlassShadow.offsetY
-                )
+            fallbackGlassBackground
         }
+        #else
+        fallbackGlassBackground
+        #endif
+    }
+
+    @ViewBuilder
+    private var fallbackGlassBackground: some View {
+        Circle()
+            .fill(.ultraThinMaterial)
+            .shadow(
+                color: GlassShadow.color.opacity(GlassShadow.opacity),
+                radius: GlassShadow.blur,
+                x: 0,
+                y: GlassShadow.offsetY
+            )
     }
 
     // MARK: - Haptics
