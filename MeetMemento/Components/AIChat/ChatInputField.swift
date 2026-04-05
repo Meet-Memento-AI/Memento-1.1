@@ -404,6 +404,7 @@ struct ChatInputField: View {
 
     @ViewBuilder
     private func glassBackground(cornerRadius: CGFloat) -> some View {
+        #if canImport(FoundationModels)
         if #available(iOS 26.0, *) {
             ZStack {
                 // Theme-aware frost layer for readability
@@ -425,16 +426,24 @@ struct ChatInputField: View {
                 y: 4
             )
         } else {
-            // Theme-aware solid background for pre-iOS 26
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(theme.glassFallback)
-                .shadow(
-                    color: Color.black.opacity(0.08),
-                    radius: 12,
-                    x: 0,
-                    y: 4
-                )
+            fallbackGlassBackground(cornerRadius: cornerRadius)
         }
+        #else
+        fallbackGlassBackground(cornerRadius: cornerRadius)
+        #endif
+    }
+
+    @ViewBuilder
+    private func fallbackGlassBackground(cornerRadius: CGFloat) -> some View {
+        // Theme-aware solid background for pre-iOS 26
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .fill(theme.glassFallback)
+            .shadow(
+                color: Color.black.opacity(0.08),
+                radius: 12,
+                x: 0,
+                y: 4
+            )
     }
 
     // MARK: - Speech Actions

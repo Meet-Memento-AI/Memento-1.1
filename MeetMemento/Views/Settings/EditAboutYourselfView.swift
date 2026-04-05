@@ -331,18 +331,27 @@ public struct EditAboutYourselfView: View {
 
     @ViewBuilder
     private var microphoneFABBackground: some View {
+        #if canImport(FoundationModels)
         if #available(iOS 26.0, *) {
             Capsule()
                 .fill(Color.white.opacity(0.3))
                 .glassEffect(.regular.interactive(), in: Capsule())
         } else {
-            Capsule()
-                .fill(.ultraThinMaterial)
-                .overlay(
-                    Capsule()
-                        .strokeBorder(Color.white.opacity(0.3), lineWidth: 1)
-                )
+            fallbackMicrophoneFABBackground
         }
+        #else
+        fallbackMicrophoneFABBackground
+        #endif
+    }
+
+    @ViewBuilder
+    private var fallbackMicrophoneFABBackground: some View {
+        Capsule()
+            .fill(.ultraThinMaterial)
+            .overlay(
+                Capsule()
+                    .strokeBorder(Color.white.opacity(0.3), lineWidth: 1)
+            )
     }
 }
 

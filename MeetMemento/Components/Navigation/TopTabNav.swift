@@ -151,12 +151,23 @@ public struct TopNav: View {
     // MARK: - Pill Background
     @ViewBuilder
     private var pillBackground: some View {
+        #if canImport(FoundationModels)
         if #available(iOS 26.0, *) {
             // iOS 26: Pure liquid glass with interactive feedback
             Capsule()
                 .fill(Color.clear)
                 .glassEffect(.regular.interactive(), in: Capsule())
-        } else if #available(iOS 18.0, *) {
+        } else {
+            fallbackPillBackground
+        }
+        #else
+        fallbackPillBackground
+        #endif
+    }
+
+    @ViewBuilder
+    private var fallbackPillBackground: some View {
+        if #available(iOS 18.0, *) {
             // iOS 18-25: Ultra thin material fallback
             Capsule()
                 .fill(Material.ultraThinMaterial)

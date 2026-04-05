@@ -96,6 +96,7 @@ struct ListeningPanel: View {
 
     @ViewBuilder
     private var glassBackground: some View {
+        #if canImport(FoundationModels)
         if #available(iOS 26.0, *) {
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                 .fill(theme.glassFill)
@@ -110,15 +111,23 @@ struct ListeningPanel: View {
                     y: GlassShadow.offsetY
                 )
         } else {
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(.ultraThinMaterial)
-                .shadow(
-                    color: GlassShadow.color.opacity(GlassShadow.opacity),
-                    radius: GlassShadow.blur,
-                    x: 0,
-                    y: GlassShadow.offsetY
-                )
+            fallbackGlassBackground
         }
+        #else
+        fallbackGlassBackground
+        #endif
+    }
+
+    @ViewBuilder
+    private var fallbackGlassBackground: some View {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .fill(.ultraThinMaterial)
+            .shadow(
+                color: GlassShadow.color.opacity(GlassShadow.opacity),
+                radius: GlassShadow.blur,
+                x: 0,
+                y: GlassShadow.offsetY
+            )
     }
 }
 

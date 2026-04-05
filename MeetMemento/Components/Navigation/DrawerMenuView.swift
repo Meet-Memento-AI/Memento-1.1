@@ -148,14 +148,23 @@ public struct DrawerMenuView: View {
 
     @ViewBuilder
     private var settingsButtonBackground: some View {
+        #if canImport(FoundationModels)
         if #available(iOS 26.0, *) {
             Capsule()
                 .fill(Color.white.opacity(0.3))
                 .glassEffect(.regular, in: Capsule())
         } else {
-            Capsule()
-                .fill(colorScheme == .dark ? GrayScale.gray800 : GrayScale.gray100)
+            fallbackSettingsButtonBackground
         }
+        #else
+        fallbackSettingsButtonBackground
+        #endif
+    }
+
+    @ViewBuilder
+    private var fallbackSettingsButtonBackground: some View {
+        Capsule()
+            .fill(colorScheme == .dark ? GrayScale.gray800 : GrayScale.gray100)
     }
 
     // MARK: - Safe Area Helpers

@@ -252,15 +252,24 @@ public struct DataUsageInfoView: View {
 
     @ViewBuilder
     private var sectionCardBackground: some View {
+        #if canImport(FoundationModels)
         if #available(iOS 26.0, *) {
             RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous)
                 .fill(colorScheme == .dark ? Color.black.opacity(0.3) : Color.white.opacity(0.7))
                 .glassEffect(.regular, in: RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous))
         } else {
-            RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous)
-                .fill(colorScheme == .dark ? GrayScale.gray800 : Color.white)
-                .shadow(color: colorScheme == .dark ? .clear : Color.black.opacity(0.06), radius: 8, x: 0, y: 2)
+            fallbackSectionCardBackground
         }
+        #else
+        fallbackSectionCardBackground
+        #endif
+    }
+
+    @ViewBuilder
+    private var fallbackSectionCardBackground: some View {
+        RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous)
+            .fill(colorScheme == .dark ? GrayScale.gray800 : Color.white)
+            .shadow(color: colorScheme == .dark ? .clear : Color.black.opacity(0.06), radius: 8, x: 0, y: 2)
     }
 }
 

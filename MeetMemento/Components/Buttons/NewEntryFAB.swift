@@ -38,13 +38,18 @@ public struct NewEntryFAB: View {
 
     @ViewBuilder
     private var fabContent: some View {
+        #if canImport(FoundationModels)
         if #available(iOS 26.0, *) {
             glassStyleContent
         } else {
             fallbackStyleContent
         }
+        #else
+        fallbackStyleContent
+        #endif
     }
 
+    #if canImport(FoundationModels)
     // iOS 26+: Pure liquid glass with primary/600 icon
     @available(iOS 26.0, *)
     private var glassStyleContent: some View {
@@ -57,6 +62,7 @@ public struct NewEntryFAB: View {
                 in: Circle()
             )
     }
+    #endif
 
     // iOS 18-25: Gradient with inner glow
     private var fallbackStyleContent: some View {

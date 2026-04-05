@@ -56,10 +56,6 @@ public struct LearnAboutYourselfView: View {
                         bodyField
                             .padding(.top, 16)
 
-                        // Character count indicator
-                        characterCounter
-                            .padding(.top, 12)
-
                         Spacer(minLength: 120)
                     }
                     .padding(.horizontal, 20)
@@ -142,13 +138,17 @@ public struct LearnAboutYourselfView: View {
 
             Spacer()
 
-            // Character counter nav button
-            WordCounterNavButton(
-                characterCount: characterCount,
-                minimumCharacters: 100,
-                buttonSize: 40,
-                onTap: { completeStep() }
-            )
+            // Submit button (checkmark)
+            Button {
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                completeStep()
+            } label: {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 40, height: 40)
+                    .background(Circle().fill(theme.primary))
+            }
         }
         .padding(.horizontal, 16)
         .padding(.top, 12)
@@ -184,23 +184,7 @@ public struct LearnAboutYourselfView: View {
         }
     }
 
-    private var characterCounter: some View {
-        HStack {
-            Spacer()
-            Text("\(characterCount) / 100 min")
-                .font(type.caption)
-                .foregroundStyle(
-                    characterCount >= 100 ? theme.primary :
-                    theme.mutedForeground.opacity(0.6)
-                )
-        }
-    }
-
     // MARK: - Computed Properties
-
-    private var characterCount: Int {
-        entryText.trimmingCharacters(in: .whitespacesAndNewlines).count
-    }
 
     private var fabWidth: CGFloat {
         speechService.isRecording ? 96 : 48
@@ -210,7 +194,6 @@ public struct LearnAboutYourselfView: View {
 
     private func completeStep() {
         let trimmedText = entryText.trimmingCharacters(in: .whitespacesAndNewlines)
-        // WordCounterNavButton already provides haptic feedback
         onComplete?(trimmedText)
     }
     
@@ -283,20 +266,29 @@ public struct LearnAboutYourselfView: View {
 
     @ViewBuilder
     private var microphoneFABBackground: some View {
+        #if canImport(FoundationModels)
         if #available(iOS 26.0, *) {
             // iOS 26: Liquid glass with frosted effect
             Capsule()
                 .fill(Color.white.opacity(0.3))
                 .glassEffect(.regular.interactive(), in: Capsule())
         } else {
-            // iOS 18+: Ultra thin material fallback
-            Capsule()
-                .fill(.ultraThinMaterial)
-                .overlay(
-                    Capsule()
-                        .strokeBorder(Color.white.opacity(0.3), lineWidth: 1)
-                )
+            fallbackMicrophoneFABBackground
         }
+        #else
+        fallbackMicrophoneFABBackground
+        #endif
+    }
+
+    @ViewBuilder
+    private var fallbackMicrophoneFABBackground: some View {
+        // iOS 18+: Ultra thin material fallback
+        Capsule()
+            .fill(.ultraThinMaterial)
+            .overlay(
+                Capsule()
+                    .strokeBorder(Color.white.opacity(0.3), lineWidth: 1)
+            )
     }
 }
 

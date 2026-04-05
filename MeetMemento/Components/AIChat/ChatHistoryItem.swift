@@ -50,18 +50,27 @@ public struct ChatHistoryItem: View {
 
     @ViewBuilder
     private var cardBackground: some View {
+        #if canImport(FoundationModels)
         if #available(iOS 26.0, *) {
             RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous)
                 .fill(Color.white.opacity(0.3))
                 .glassEffect(.regular, in: RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous))
         } else {
-            RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous)
-                .fill(colorScheme == .dark ? GrayScale.gray800 : GrayScale.gray100)
-                .overlay(
-                    RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous)
-                        .stroke(theme.border, lineWidth: 1)
-                )
+            fallbackCardBackground
         }
+        #else
+        fallbackCardBackground
+        #endif
+    }
+
+    @ViewBuilder
+    private var fallbackCardBackground: some View {
+        RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous)
+            .fill(colorScheme == .dark ? GrayScale.gray800 : GrayScale.gray100)
+            .overlay(
+                RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous)
+                    .stroke(theme.border, lineWidth: 1)
+            )
     }
 
     // MARK: - Formatted Date

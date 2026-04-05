@@ -116,11 +116,15 @@ extension View {
     /// Falls back to unchanged view on earlier iOS versions
     @ViewBuilder
     func iOS26GlassEffect(in shape: some Shape = .rect(cornerRadius: 16)) -> some View {
+        #if canImport(FoundationModels)
         if #available(iOS 26.0, *) {
             self.glassEffect(in: shape)
         } else {
             self
         }
+        #else
+        self
+        #endif
     }
 }
 

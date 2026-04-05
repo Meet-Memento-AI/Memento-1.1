@@ -206,7 +206,7 @@ public struct AddEntryView: View {
                         .frame(width: 40, height: 40)
                         .background(
                             Circle()
-                                .fill(Color.gray.opacity(0.5))
+                                .fill(GrayScale.gray100)
                         )
                 }
 
@@ -224,7 +224,7 @@ public struct AddEntryView: View {
                 .frame(height: 40)
                 .background(
                     Capsule()
-                        .fill(Color.gray.opacity(0.5))
+                        .fill(GrayScale.gray100)
                 )
 
                 Spacer()
@@ -342,20 +342,29 @@ public struct AddEntryView: View {
 
     @ViewBuilder
     private var microphoneFABBackground: some View {
+        #if canImport(FoundationModels)
         if #available(iOS 26.0, *) {
             // iOS 26: Liquid glass with frosted effect
             Capsule()
                 .fill(Color.white.opacity(0.3))
                 .glassEffect(.regular.interactive(), in: Capsule())
         } else {
-            // iOS 18+: Ultra thin material fallback
-            Capsule()
-                .fill(.ultraThinMaterial)
-                .overlay(
-                    Capsule()
-                        .strokeBorder(Color.white.opacity(0.3), lineWidth: 1)
-                )
+            fallbackMicrophoneFABBackground
         }
+        #else
+        fallbackMicrophoneFABBackground
+        #endif
+    }
+
+    @ViewBuilder
+    private var fallbackMicrophoneFABBackground: some View {
+        // iOS 18+: Ultra thin material fallback
+        Capsule()
+            .fill(.ultraThinMaterial)
+            .overlay(
+                Capsule()
+                    .strokeBorder(Color.white.opacity(0.3), lineWidth: 1)
+            )
     }
 
     // MARK: - Actions

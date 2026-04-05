@@ -118,15 +118,24 @@ public struct AppearanceSettingsView: View {
 
     @ViewBuilder
     private var sectionCardBackground: some View {
+        #if canImport(FoundationModels)
         if #available(iOS 26.0, *) {
             RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous)
                 .fill(theme.glassFill)
                 .glassEffect(.regular, in: RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous))
         } else {
-            RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous)
-                .fill(theme.glassFallback)
-                .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 2)
+            fallbackSectionCardBackground
         }
+        #else
+        fallbackSectionCardBackground
+        #endif
+    }
+
+    @ViewBuilder
+    private var fallbackSectionCardBackground: some View {
+        RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous)
+            .fill(theme.glassFallback)
+            .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 2)
     }
 
     // MARK: - Actions
