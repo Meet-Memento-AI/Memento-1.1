@@ -88,7 +88,7 @@ struct InsightsContentView: View {
                             Text(displayedHeadline)
                                 .font(type.h3)
                                 .fontWeight(.bold)
-                                .foregroundStyle(.white)
+                                .foregroundStyle(theme.overlayText)
                                 .fixedSize(horizontal: false, vertical: true)
                                 .multilineTextAlignment(.leading)
                         }
@@ -104,7 +104,7 @@ struct InsightsContentView: View {
                 // Group 2: Core Observation
                 Text(displayObservation)
                     .font(type.body1)
-                    .foregroundStyle(.white.opacity(0.6))
+                    .foregroundStyle(theme.overlayText.opacity(0.6))
                     .lineSpacing(6)
                     .opacity(loadingStep > 1 ? 1 : 0)
                     .scaleEffect(loadingStep > 1 ? 1 : 0.99)
@@ -120,7 +120,7 @@ struct InsightsContentView: View {
                         if let extendedObservation = displayObservationExtended {
                             Text(extendedObservation)
                                 .font(type.body1)
-                                .foregroundStyle(.white.opacity(0.6))
+                                .foregroundStyle(theme.overlayText.opacity(0.6))
                                 .lineSpacing(6)
                         }
                     }
@@ -151,7 +151,7 @@ struct InsightsContentView: View {
                 if let error = insightError {
                     Text("Unable to generate insights: \(error)")
                         .font(type.body2)
-                        .foregroundStyle(.white.opacity(0.5))
+                        .foregroundStyle(theme.overlayText.opacity(0.5))
                         .padding(.top, 16)
                 }
 
@@ -159,12 +159,12 @@ struct InsightsContentView: View {
                 if insight == nil, !isLoadingInsight, totalEntries > 0, entriesForSelectedMonth.isEmpty {
                     Text("No entries this month. Select another month or pull to refresh.")
                         .font(type.body2)
-                        .foregroundStyle(.white.opacity(0.5))
+                        .foregroundStyle(theme.overlayText.opacity(0.5))
                         .padding(.top, 24)
                 } else if insight == nil, !isLoadingInsight {
                     Text("Pull down to load insights for \(currentMonthDisplay)")
                         .font(type.body2)
-                        .foregroundStyle(.white.opacity(0.5))
+                        .foregroundStyle(theme.overlayText.opacity(0.5))
                         .padding(.top, 24)
                 }
             }

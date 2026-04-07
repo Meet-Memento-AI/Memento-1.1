@@ -13,8 +13,8 @@ import SwiftUI
 /// Design tokens for WCAG AAA compliant chart colors
 /// Based on sentiment analysis UI design
 struct ChartAccessibilityTokens {
-    /// Background color: #361562 (PrimaryScale.primary900)
-    static let chartBackground = Color(hex: "#361562")
+    /// Background color: PrimaryScale.primary900
+    static let chartBackground = PrimaryScale.primary900
 
     /// Text color - Pure white achieves 12.63:1 contrast (exceeds AAA 7:1)
     static let textPrimary = BaseColors.white

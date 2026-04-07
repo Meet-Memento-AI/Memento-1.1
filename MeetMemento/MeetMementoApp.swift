@@ -55,11 +55,13 @@ struct MeetMementoApp: App {
                                 .useTheme()
                                 .useTypography()
                                 .environmentObject(authViewModel)
+                                .transition(.opacity)
                         } else {
                             ContentView()
                                 .useTheme()
                                 .useTypography()
                                 .environmentObject(authViewModel)
+                                .transition(.opacity)
                                 .onAppear {
                                     #if DEBUG
                                     print("🔴 ContentView appeared")
@@ -72,12 +74,14 @@ struct MeetMementoApp: App {
                             .useTheme()
                             .useTypography()
                             .environmentObject(authViewModel)
+                            .transition(.opacity.animation(.easeInOut(duration: 0.4)))
                     } else {
                         // LOGGED OUT: Show welcome/sign-in
                         WelcomeView()
                             .useTheme()
                             .useTypography()
                             .environmentObject(authViewModel)
+                            .transition(.opacity.animation(.easeInOut(duration: 0.4)))
                             .onAppear {
                                 #if DEBUG
                                 print("🔴 WelcomeView appeared")
@@ -86,6 +90,7 @@ struct MeetMementoApp: App {
                             }
                     }
                 }
+                .animation(.easeInOut(duration: 0.4), value: authViewModel.isAuthenticated)
                 .ignoresSafeArea()
             }
             .ignoresSafeArea()

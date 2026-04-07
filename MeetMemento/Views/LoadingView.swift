@@ -179,10 +179,13 @@ struct LoadingView: View {
 
     private func startTipRotation() {
         // Rotate tips every 6 seconds with smooth transition
-        // Store timer reference for cleanup on disappear
-        tipTimer = Timer.scheduledTimer(withTimeInterval: 6.0, repeats: true) { [self] _ in
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) {
-                currentTipIndex = (currentTipIndex + 1) % loadingTips.count
+        // Timer callback may fire on non-main thread, so dispatch to main queue
+        // to safely update @State properties
+        tipTimer = Timer.scheduledTimer(withTimeInterval: 6.0, repeats: true) { _ in
+            DispatchQueue.main.async {
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) {
+                    currentTipIndex = (currentTipIndex + 1) % loadingTips.count
+                }
             }
         }
     }
@@ -198,152 +201,8 @@ struct LoadingView: View {
     }
 }
 
-// MARK: - Modern Progress Ring
-
-private struct ModernProgressRing: View {
-    @Environment(\.theme) private var theme
-    @State private var rotation: Double = 0
-
-    var body: some View {
-        ZStack {
-            // Subtle background ring
-            Circle()
-                .stroke(theme.border.opacity(0.3), lineWidth: 2.5)
-
-            // Animated gradient arc
-            Circle()
-                .trim(from: 0, to: 0.65)
-                .stroke(
-                    AngularGradient(
-                        gradient: Gradient(stops: [
-                            .init(color: theme.primary, location: 0.0),
-                            .init(color: theme.accent, location: 0.5),
-                            .init(color: theme.primary.opacity(0.3), location: 1.0)
-                        ]),
-                        center: .center
-                    ),
-                    style: StrokeStyle(lineWidth: 2.5, lineCap: .round)
-                )
-                .rotationEffect(.degrees(rotation))
-                .animation(
-                    .linear(duration: 1.5)
-                    .repeatForever(autoreverses: false),
-                    value: rotation
-                )
-        }
-        .onAppear {
-            rotation = 360
-        }
-    }
-}
-
-// MARK: - Modern Tip Card
-
-private struct TipCard: View {
-    @Environment(\.theme) private var theme
-    @Environment(\.typography) private var type
-
-    let icon: String
-    let title: String
-    let message: String
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 16) {
-            // Icon container
-            ZStack {
-                Circle()
-                    .fill(theme.primary.opacity(0.12))
-                    .frame(width: 44, height: 44)
-
-                Image(systemName: icon)
-                    .font(.system(size: 20, weight: .medium))
-                    .foregroundStyle(theme.primary)
-            }
-
-            // Content
-            VStack(alignment: .leading, spacing: 6) {
-                Text(title)
-                    .font(type.body1Bold)
-                    .foregroundStyle(theme.foreground)
-
-                Text(message)
-                    .font(type.body1)
-                    .foregroundStyle(theme.mutedForeground)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(20)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(theme.card)
-                .shadow(color: Color.black.opacity(0.04), radius: 8, y: 2)
-        )
-    }
-}
-
-// MARK: - Loading Phases
-
-private enum LoadingPhase {
-    case initial
-    case authenticating
-    case loadingData
-    case finalizing
-
-    var message: String {
-        switch self {
-        case .initial:
-            return ""
-        case .authenticating:
-            return "Preparing your space..."
-        case .loadingData:
-            return "Loading your memories..."
-        case .finalizing:
-            return "Almost there..."
-        }
-    }
-}
-
-// MARK: - Loading Tips
-
-private struct LoadingTip {
-    let icon: String
-    let title: String
-    let message: String
-}
-
-private let loadingTips = [
-    LoadingTip(
-        icon: "heart.fill",
-        title: "Daily practice",
-        message: "Journaling for just 5 minutes a day can improve mental clarity and reduce stress."
-    ),
-    LoadingTip(
-        icon: "wind",
-        title: "Breathe mindfully",
-        message: "Take three slow, deep breaths. Notice how your body feels right now."
-    ),
-    LoadingTip(
-        icon: "brain.head.profile",
-        title: "Spot patterns",
-        message: "Regular reflection helps you understand recurring thoughts and behaviors."
-    ),
-    LoadingTip(
-        icon: "target",
-        title: "Set intentions",
-        message: "Writing down your goals makes you 42% more likely to achieve them."
-    ),
-    LoadingTip(
-        icon: "lock.shield.fill",
-        title: "Safe space",
-        message: "Your journal is private. Write honestly without judgment or fear."
-    ),
-    LoadingTip(
-        icon: "sparkles",
-        title: "Find joy",
-        message: "Small moments of mindfulness can transform your entire day."
-    )
-]
+// Note: ModernProgressRing, TipCard, LoadingPhase, LoadingTip, and loadingTips
+// are now shared components in Components/Loading/
 
 // MARK: - Previews
 

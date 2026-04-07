@@ -120,21 +120,17 @@ public struct LearnAboutYourselfView: View {
 
     private var headerSection: some View {
         HStack(alignment: .center) {
-            // Back button (hidden on first step)
-            if !isFirstStep {
-                IconButtonNav(
-                    icon: "chevron.left",
-                    iconSize: 20,
-                    buttonSize: 40,
-                    foregroundColor: theme.foreground,
-                    useDarkBackground: false,
-                    enableHaptic: true,
-                    onTap: { onBack?() ?? dismiss() }
-                )
-                .accessibilityLabel("Back")
-            } else {
-                Color.clear.frame(width: 40, height: 40)
-            }
+            // Back button - always visible with liquid glass styling
+            IconButtonNav(
+                icon: "chevron.left",
+                iconSize: 20,
+                buttonSize: 40,
+                foregroundColor: theme.foreground,
+                useDarkBackground: false,
+                enableHaptic: true,
+                onTap: { onBack?() ?? dismiss() }
+            )
+            .accessibilityLabel("Back")
 
             Spacer()
 

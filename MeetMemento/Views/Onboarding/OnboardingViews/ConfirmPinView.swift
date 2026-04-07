@@ -10,6 +10,7 @@ public struct ConfirmPinView: View {
     @Environment(\.dismiss) var dismiss
     @Environment(\.theme) private var theme
     @Environment(\.typography) private var type
+    @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject var onboardingViewModel: OnboardingViewModel
 
     @State private var pin: String = ""
@@ -81,8 +82,7 @@ public struct ConfirmPinView: View {
                     }
                     .opacity(pin.count == 4 ? 1.0 : 0.5)
                     .disabled(pin.count != 4)
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 32)
+                    .padding(.horizontal, 16)
                 }
             }
             
@@ -93,23 +93,24 @@ public struct ConfirmPinView: View {
                 .opacity(0)
                 .frame(width: 0, height: 0)
                 .onChange(of: pin) { oldValue, newValue in
-                    // Filter to only allow digits
-                    let filtered = newValue.filter { $0.isNumber }
+                    // Filter to only allow digits and limit to 4
+                    var filtered = newValue.filter { $0.isNumber }
+                    if filtered.count > 4 {
+                        filtered = String(filtered.prefix(4))
+                    }
+
+                    // Only update state if the value actually changed to avoid re-entrancy
                     if filtered != newValue {
                         pin = filtered
                         return
                     }
-                    
-                    // Limit to 4 digits
-                    if filtered.count > 4 {
-                        pin = String(filtered.prefix(4))
-                    } else {
-                        pin = filtered
-                    }
-                    
+
                     // Auto-validate when 4 digits are entered
-                    if pin.count == 4 {
-                        validatePin(pin)
+                    // Use async to let the current state update complete first
+                    if filtered.count == 4 && oldValue.count < 4 {
+                        Task { @MainActor in
+                            validatePin(filtered)
+                        }
                     }
                 }
         }
@@ -170,14 +171,14 @@ public struct ConfirmPinView: View {
                     UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 } label: {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(GrayScale.gray200)
+                        .fill(colorScheme == .dark ? GrayScale.gray700 : GrayScale.gray200)
                         .frame(width: 60, height: 70)
                         .overlay(
                             Group {
                                 if index < pin.count {
-                                    Text(String(pin[pin.index(pin.startIndex, offsetBy: index)]))
-                                        .font(type.h2)
-                                        .foregroundStyle(theme.foreground)
+                                    Circle()
+                                        .fill(theme.foreground)
+                                        .frame(width: 16, height: 16)
                                 }
                             }
                         )

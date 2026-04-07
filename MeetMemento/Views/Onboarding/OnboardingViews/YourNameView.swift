@@ -61,8 +61,7 @@ public struct YourNameView: View {
                 }
                 .opacity(canContinue ? 1.0 : 0.5)
                 .disabled(!canContinue)
-                .padding(.horizontal, 20)
-                .padding(.bottom, 32)
+                .padding(.horizontal, 16)
             }
         }
         .navigationBarBackButtonHidden(true)

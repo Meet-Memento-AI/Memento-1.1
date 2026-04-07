@@ -30,6 +30,9 @@ class AuthViewModel: ObservableObject {
     /// True only after `initializeAuth()` has finished (any branch). Root UI must not show Welcome/main until this is true.
     @Published var hasCheckedAuth = false
     @Published var isInitializing: Bool = true  // Busy during session restore (optional; root gates on `hasCheckedAuth`)
+    /// Set to true when user navigates back from onboarding to WelcomeView.
+    /// WelcomeView uses this to skip intro animations and show content immediately.
+    @Published var isReturningFromOnboarding = false
 
     // Pending profile from Apple Sign In (stub/flow)
     var pendingFirstName: String?
@@ -216,10 +219,12 @@ class AuthViewModel: ObservableObject {
         )
 
         let email = appleResult.email ?? session.user.email ?? ""
+        // Don't save OAuth name to DB - let YourNameView handle it
+        // Name is stored in pendingFirstName/pendingLastName for pre-fill
         try await UserService.shared.ensureUserExistsWithProfile(
             id: session.user.id,
             email: email,
-            fullName: appleResult.fullName
+            fullName: nil
         )
 
         // Preserve Apple-provided name for YourNameView pre-fill (Apple only sends it once)
@@ -256,11 +261,20 @@ class AuthViewModel: ObservableObject {
         let email = session.user.email ?? ""
         let fullName = session.user.userMetadata["full_name"]?.stringValue
 
+        // Don't save OAuth name to DB - let YourNameView handle it
+        // Name is stored in pendingFirstName/pendingLastName for pre-fill
         try await UserService.shared.ensureUserExistsWithProfile(
             id: session.user.id,
             email: email,
-            fullName: fullName
+            fullName: nil
         )
+
+        // Preserve Google-provided name for YourNameView pre-fill
+        if let fullName = fullName, !fullName.isEmpty {
+            let parts = fullName.split(separator: " ", maxSplits: 1)
+            pendingFirstName = String(parts.first ?? "")
+            pendingLastName = parts.count > 1 ? String(parts.last ?? "") : nil
+        }
 
         let hasOnboarded = try await UserService.shared.hasCompletedOnboarding(userId: session.user.id)
 

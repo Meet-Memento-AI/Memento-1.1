@@ -36,6 +36,7 @@ struct ChatInputField: View {
 
     @Environment(\.theme) private var theme
     @Environment(\.typography) private var type
+    @Environment(\.colorScheme) private var colorScheme
     @State private var inputState: InputState
     @FocusState private var isFocused: Bool
     @ObservedObject private var speechService = SpeechService.shared
@@ -57,11 +58,7 @@ struct ChatInputField: View {
     private let backButtonSize: CGFloat = 48
     private let listeningButtonSize: CGFloat = 40
 
-    // Colors
-    private let placeholderColor = Color(hex: "#5C6771")
-    private let purpleColor = Color(hex: "#6125B1")
-    private let purpleText = Color(hex: "#6125B2")
-    private let lightPurple = Color(hex: "#E2D5F3")
+    // Note: Colors now use theme tokens for consistency
 
     /// Whether the input is in an expanded state (chatActive or narrateActive)
     var isExpanded: Bool {
@@ -257,7 +254,7 @@ struct ChatInputField: View {
                 "",
                 text: $text,
                 prompt: Text("Chat with Memento")
-                    .foregroundStyle(theme.foreground.opacity(0.6)),
+                    .foregroundStyle((colorScheme == .dark ? Color.white : Color.black).opacity(0.6)),
                 axis: .vertical
             )
                 .font(type.body1)
@@ -278,8 +275,8 @@ struct ChatInputField: View {
                     .background(
                         Circle()
                             .fill(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                                  ? purpleColor.opacity(0.5)
-                                  : purpleColor)
+                                  ? theme.primary.opacity(0.5)
+                                  : theme.primary)
                     )
             }
             .buttonStyle(.plain)
@@ -310,11 +307,11 @@ struct ChatInputField: View {
                 } label: {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(purpleColor)
+                        .foregroundStyle(theme.primary)
                         .frame(width: listeningButtonSize, height: listeningButtonSize)
                         .background(
                             Circle()
-                                .fill(lightPurple)
+                                .fill(PrimaryScale.primary100)
                         )
                         .contentShape(Circle())
                 }
@@ -335,7 +332,7 @@ struct ChatInputField: View {
                         .frame(width: listeningButtonSize, height: listeningButtonSize)
                         .background(
                             Circle()
-                                .fill(purpleColor)
+                                .fill(theme.primary)
                         )
                         .contentShape(Circle())
                 }
@@ -360,8 +357,8 @@ struct ChatInputField: View {
 
             // Label
             Text("Narrate")
-                .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(purpleText)
+                .font(type.body1)
+                .foregroundStyle(theme.primary)
                 .padding(.bottom, 24)
                 .opacity(showListeningContent ? 1 : 0)
         }

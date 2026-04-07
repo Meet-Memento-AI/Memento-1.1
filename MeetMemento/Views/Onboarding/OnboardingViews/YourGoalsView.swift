@@ -79,8 +79,7 @@ public struct YourGoalsView: View {
                 }
                 .opacity(canContinue ? 1.0 : 0.5)
                 .disabled(!canContinue)
-                .padding(.horizontal, 20)
-                .padding(.bottom, 32)
+                .padding(.horizontal, 16)
             }
         }
         .navigationBarBackButtonHidden(true)
@@ -106,19 +105,17 @@ public struct YourGoalsView: View {
 
             // Header content
             HStack(alignment: .center, spacing: 12) {
-                // Back button (hidden on first step)
-                if !isFirstStep {
-                    IconButtonNav(
-                        icon: "chevron.left",
-                        iconSize: 20,
-                        buttonSize: 40,
-                        foregroundColor: theme.foreground,
-                        useDarkBackground: false,
-                        enableHaptic: true,
-                        onTap: { onBack?() ?? dismiss() }
-                    )
-                    .accessibilityLabel("Back")
-                }
+                // Back button - always visible with liquid glass styling
+                IconButtonNav(
+                    icon: "chevron.left",
+                    iconSize: 20,
+                    buttonSize: 40,
+                    foregroundColor: theme.foreground,
+                    useDarkBackground: false,
+                    enableHaptic: true,
+                    onTap: { onBack?() ?? dismiss() }
+                )
+                .accessibilityLabel("Back")
 
                 Spacer()
 

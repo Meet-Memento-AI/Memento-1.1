@@ -63,10 +63,10 @@ public struct FaceIDView: View {
                         .foregroundStyle(theme.mutedForeground)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 20)
-
                     Spacer()
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 16)
+                Spacer()
             }
 
             // Bottom buttons
@@ -79,7 +79,7 @@ public struct FaceIDView: View {
                             .font(.system(size: 14))
                             .foregroundStyle(Color.red)
                             .multilineTextAlignment(.center)
-                            .padding(.horizontal, 20)
+                            .padding(.horizontal, 16)
                     }
 
                     if isAuthenticating {
@@ -96,8 +96,7 @@ public struct FaceIDView: View {
                         handleCreatePIN()
                     }
                 }
-                .padding(.horizontal, 20)
-                .padding(.bottom, 32)
+                .padding(.horizontal, 16)
             }
         }
         .navigationBarBackButtonHidden(true)
@@ -123,19 +122,17 @@ public struct FaceIDView: View {
 
             // Header content
             HStack(alignment: .center, spacing: 12) {
-                // Back button (hidden on first step)
-                if !isFirstStep {
-                    IconButtonNav(
-                        icon: "chevron.left",
-                        iconSize: 20,
-                        buttonSize: 40,
-                        foregroundColor: theme.foreground,
-                        useDarkBackground: false,
-                        enableHaptic: true,
-                        onTap: { onBack?() ?? dismiss() }
-                    )
-                    .accessibilityLabel("Back")
-                }
+                // Back button - always visible with liquid glass styling
+                IconButtonNav(
+                    icon: "chevron.left",
+                    iconSize: 20,
+                    buttonSize: 40,
+                    foregroundColor: theme.foreground,
+                    useDarkBackground: false,
+                    enableHaptic: true,
+                    onTap: { onBack?() ?? dismiss() }
+                )
+                .accessibilityLabel("Back")
 
                 Spacer()
 

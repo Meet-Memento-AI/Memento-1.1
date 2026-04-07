@@ -10,18 +10,19 @@ import SwiftUI
 struct ListeningDotsView: View {
     var audioLevel: Float
 
+    @Environment(\.theme) private var theme
+
     private let barCount = 7
     private let barWidth: CGFloat = 4
     private let spacing: CGFloat = 6
     private let minHeight: CGFloat = 4
     private let maxHeight: CGFloat = 64
-    private let purpleColor = Color(hex: "#6125B2")
 
     var body: some View {
         HStack(spacing: spacing) {
             ForEach(0..<barCount, id: \.self) { index in
                 RoundedRectangle(cornerRadius: barWidth / 2)
-                    .fill(purpleColor)
+                    .fill(theme.primary)
                     .frame(width: barWidth, height: heightForBar(index))
                     .animation(
                         .easeInOut(duration: 0.15)
@@ -57,25 +58,25 @@ struct ListeningDotsView: View {
 #Preview("Listening Waves - Silent") {
     ListeningDotsView(audioLevel: 0.0)
         .padding()
-        .background(Color.white)
+        .useTheme()
 }
 
 #Preview("Listening Waves - Low") {
     ListeningDotsView(audioLevel: 0.3)
         .padding()
-        .background(Color.white)
+        .useTheme()
 }
 
 #Preview("Listening Waves - Medium") {
     ListeningDotsView(audioLevel: 0.6)
         .padding()
-        .background(Color.white)
+        .useTheme()
 }
 
 #Preview("Listening Waves - High") {
     ListeningDotsView(audioLevel: 1.0)
         .padding()
-        .background(Color.white)
+        .useTheme()
 }
 
 #Preview("Listening Waves - Animated") {

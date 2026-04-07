@@ -21,31 +21,64 @@ public struct WelcomeView: View {
     @State private var playbackProgress: Double = 0
     @State private var hasCompletedFirstLoop = false
 
+    // Animation sequence states
+    @State private var videoOpacity: Double = 0        // For video dissolve
+    @State private var contentCanAppear = false        // Gate for content
+    @State private var blurCanStart = false            // Gate for blur
+    @State private var isExiting = false               // Triggers exit dissolve
+
     // Staggered animation states
     @State private var showLogo = false
     @State private var showHeadline = false
     @State private var showButtons = false
 
+    // Track if we should skip intro animations (when returning from onboarding)
+    @State private var skipIntroAnimations = false
+
     public init() {}
 
     /// Calculate blur amount based on video playback progress
+    /// Delayed start with quadratic ease-in for a more delicate feel
     private var blurAmount: CGFloat {
+        // No blur during exit (dissolving to white)
+        if isExiting { return 0 }
+
+        // Don't blur until content has loaded
+        guard blurCanStart else { return 0 }
+
         if hasCompletedFirstLoop {
             return 40  // Stay at max blur after first loop
         }
-        return CGFloat(playbackProgress) * 40  // 0 to 40 during first playback
+
+        // Let video play clear for first 40%, then ease blur in
+        let blurStartThreshold: Double = 0.4
+
+        if playbackProgress < blurStartThreshold {
+            return 0  // Crystal clear video
+        }
+
+        // Remap 0.4-1.0 → 0-1, then apply ease-in curve
+        let normalizedProgress = (playbackProgress - blurStartThreshold) / (1.0 - blurStartThreshold)
+        let easedProgress = normalizedProgress * normalizedProgress  // Quadratic ease-in
+
+        return CGFloat(easedProgress) * 40
     }
 
     public var body: some View {
         NavigationStack {
             ZStack {
-                // 1. Video background with progressive layer blur
+                // Layer 1: White background (always present, visible during dissolve)
+                Color.white
+                    .ignoresSafeArea()
+
+                // Layer 2: Video background (dissolves in/out)
                 VideoBackground(
                     videoName: "welcome-bg",
                     videoExtension: "mp4",
                     isVideoReady: $isVideoReady,
                     playbackProgress: $playbackProgress
                 )
+                .opacity(videoOpacity)
                 .blur(radius: blurAmount)
                 .ignoresSafeArea()
                 .onChange(of: playbackProgress) { oldValue, newValue in
@@ -55,32 +88,68 @@ public struct WelcomeView: View {
                     }
                 }
 
-                // 2. Gradient overlay on video
+                // Layer 3: Gradient overlay (follows video opacity)
                 LinearGradient(
                     colors: [Color.white.opacity(0.4), Color.white.opacity(0)],
                     startPoint: .top,
                     endPoint: .bottom
                 )
+                .opacity(videoOpacity)
                 .ignoresSafeArea()
 
-                // 3. Content - dissolve in when video ready
-                if isVideoReady {
+                // Layer 4: Content (appears after video dissolve)
+                if contentCanAppear {
                     contentOverlay
-                        .transition(.opacity)
                 }
 
-                // 4. Launch screen replica while loading
-                if !isVideoReady {
+                // Layer 5: Launch screen replica while loading (skip when returning from onboarding)
+                if !isVideoReady && !skipIntroAnimations {
                     launchLoadingView
-                        .transition(.opacity)
+                        .transition(.opacity.animation(.easeInOut(duration: 1.2)))
                 }
             }
-            .animation(.easeIn(duration: 0.6), value: isVideoReady)
+            .animation(.easeInOut(duration: 1.0), value: isVideoReady)
+            .onAppear {
+                // Check if returning from onboarding - skip intro animations
+                if authViewModel.isReturningFromOnboarding {
+                    skipIntroAnimations = true
+                    authViewModel.isReturningFromOnboarding = false
+                }
+            }
             .onChange(of: isVideoReady) { _, ready in
                 guard ready else { return }
-                withAnimation(.easeOut(duration: 0.5)) { showLogo = true }
-                withAnimation(.easeOut(duration: 0.5).delay(0.2)) { showHeadline = true }
-                withAnimation(.easeOut(duration: 0.5).delay(0.4)) { showButtons = true }
+
+                // If returning from onboarding, show everything immediately
+                if skipIntroAnimations {
+                    videoOpacity = 1.0
+                    contentCanAppear = true
+                    showLogo = true
+                    showHeadline = true
+                    showButtons = true
+                    blurCanStart = true
+                    hasCompletedFirstLoop = true
+                    return
+                }
+
+                // Phase 1: Dissolve video in
+                withAnimation(.easeInOut(duration: 1.2)) {
+                    videoOpacity = 1.0
+                }
+
+                // After video dissolve, start content sequence
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                    contentCanAppear = true
+
+                    // Phase 2: Staggered content reveal
+                    withAnimation(.easeInOut(duration: 0.8)) { showLogo = true }
+                    withAnimation(.easeInOut(duration: 0.8).delay(0.3)) { showHeadline = true }
+                    withAnimation(.easeInOut(duration: 0.8).delay(0.6)) { showButtons = true }
+
+                    // Phase 3: After content loads, enable blur
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
+                        blurCanStart = true
+                    }
+                }
             }
         }
         .useTypography()
@@ -186,6 +255,20 @@ public struct WelcomeView: View {
 
     // MARK: - Auth Actions
 
+    /// Phase 4: Exit animation - dissolve video and content to white
+    /// SwiftUI transition in MeetMementoApp handles the 0.5s fade-out
+    private func handleAuthSuccess() {
+        isExiting = true
+
+        // Quick internal fade (0.5s) synced with SwiftUI transition
+        withAnimation(.easeInOut(duration: 0.5)) {
+            videoOpacity = 0
+            showLogo = false
+            showHeadline = false
+            showButtons = false
+        }
+    }
+
     private func signInWithApple() {
         isAppleLoading = true
         authError = ""
@@ -195,6 +278,7 @@ public struct WelcomeView: View {
                 try await authViewModel.signInWithApple()
                 await MainActor.run {
                     isAppleLoading = false
+                    handleAuthSuccess()
                 }
             } catch let error as AppleSignInError {
                 await MainActor.run {
@@ -224,7 +308,10 @@ public struct WelcomeView: View {
         Task {
             do {
                 try await authViewModel.signInWithGoogle()
-                await MainActor.run { isGoogleLoading = false }
+                await MainActor.run {
+                    isGoogleLoading = false
+                    handleAuthSuccess()
+                }
             } catch {
                 #if DEBUG
                 print("🔴 Google Sign In error: \(error)")

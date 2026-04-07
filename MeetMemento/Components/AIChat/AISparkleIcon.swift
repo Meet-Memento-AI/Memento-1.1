@@ -10,8 +10,8 @@ import SwiftUI
 struct AISparkleIcon: View {
     var size: CGFloat = 20
 
-    private let gradientStart = Color(hex: "#9869D5")
-    private let gradientEnd = Color(hex: "#57219C")
+    private let gradientStart = PrimaryScale.primary400
+    private let gradientEnd = PrimaryScale.primary700
 
     var body: some View {
         ZStack {

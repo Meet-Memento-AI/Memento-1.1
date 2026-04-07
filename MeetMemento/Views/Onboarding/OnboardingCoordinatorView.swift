@@ -86,7 +86,8 @@ public struct OnboardingCoordinatorView: View {
     private func destinationView(for route: OnboardingRoute) -> some View {
         switch route {
         case .yourName:
-            YourNameView(onComplete: { handleYourNameComplete() }, isFirstStep: false, onBack: { handleBack() })
+            // When YourNameView is navigated to (not initial), back should go to WelcomeView
+            YourNameView(onComplete: { handleYourNameComplete() }, isFirstStep: false, onBack: { handleBackToWelcome() })
                 .environmentObject(authViewModel)
 
         case .learnAboutYourself:
@@ -135,23 +136,11 @@ public struct OnboardingCoordinatorView: View {
 
     @ViewBuilder
     private var initialView: some View {
-        if onboardingViewModel.shouldStartAtProfile {
-            YourNameView(onComplete: { handleYourNameComplete() }, isFirstStep: true, onBack: { handleBackToWelcome() })
-                .environmentObject(authViewModel)
-        } else if onboardingViewModel.shouldStartAtPersonalization {
-            LearnAboutYourselfView(onComplete: { userInput in handleLearnAboutYourselfComplete(userInput) }, isFirstStep: true)
-                .environmentObject(authViewModel)
-        } else if onboardingViewModel.shouldStartAtGoals {
-            YourGoalsView(onComplete: { handleYourGoalsComplete() }, isFirstStep: true)
-                .environmentObject(authViewModel)
-        } else {
-            FaceIDView(
-                onUseFaceID: { handleUseFaceID() },
-                onCreatePIN: { handleCreatePIN() },
-                isFirstStep: true
-            )
+        // Always start onboarding at YourNameView
+        // Pre-filled data from OAuth will show, user can confirm/edit
+        // This ensures proper forward navigation and natural back animations
+        YourNameView(onComplete: { handleYourNameComplete() }, isFirstStep: true, onBack: { handleBackToWelcome() })
             .environmentObject(authViewModel)
-        }
     }
 
     // MARK: - Navigation Handlers
@@ -239,6 +228,8 @@ public struct OnboardingCoordinatorView: View {
     }
 
     private func handleBackToWelcome() {
+        // Signal to WelcomeView to skip intro animations
+        authViewModel.isReturningFromOnboarding = true
         Task {
             await authViewModel.signOut()
         }

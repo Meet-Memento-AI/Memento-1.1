@@ -20,7 +20,6 @@ struct NarrateButton: View {
     @Environment(\.theme) private var theme
 
     private let buttonSize: CGFloat = 48
-    private let purpleColor = Color(hex: "#6125B1")
 
     var body: some View {
         Button(action: {
@@ -93,7 +92,7 @@ struct NarrateButton: View {
             glassBackground
         case .send, .sending:
             Circle()
-                .fill(purpleColor)
+                .fill(theme.primary)
                 .shadow(
                     color: GlassShadow.color.opacity(GlassShadow.opacity),
                     radius: GlassShadow.blur,

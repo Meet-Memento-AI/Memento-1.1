@@ -135,7 +135,7 @@ public struct InsightsView: View {
                                     .font(type.body2)
                                     .fontWeight(.semibold)
                             }
-                            .foregroundStyle(.white)
+                            .foregroundStyle(theme.overlayText)
                         }
                         .accessibilityLabel("Select Month - \(currentMonthDisplay)")
                     }
@@ -149,7 +149,7 @@ public struct InsightsView: View {
                             Image(systemName: "square.and.pencil")
                                 .font(type.body1)
                                 .fontWeight(.medium)
-                                .foregroundStyle(.white)
+                                .foregroundStyle(theme.overlayText)
                         }
                         .accessibilityLabel("New Journal Entry")
                     }

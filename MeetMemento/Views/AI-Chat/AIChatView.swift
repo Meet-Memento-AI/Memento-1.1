@@ -67,6 +67,14 @@ public struct AIChatView: View {
                             .allowsHitTesting(false)
                     }
 
+                    // Bottom gradient fade for scroll content
+                    // Positioned above messages, below floating input
+                    VStack {
+                        Spacer()
+                        ScrollEdgeFade(edge: .bottom, height: 100)
+                    }
+                    .allowsHitTesting(false)
+
                     // Input area - floats at bottom with no background
                     VStack {
                         Spacer()

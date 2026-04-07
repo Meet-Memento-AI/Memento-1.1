@@ -8,6 +8,7 @@
 import SwiftUI
 
 struct InsightsEmptyState: View {
+    @Environment(\.theme) private var theme
     @Environment(\.typography) private var type
 
     let icon: String
@@ -20,16 +21,16 @@ struct InsightsEmptyState: View {
 
             Image(systemName: icon)
                 .font(.system(size: 36))
-                .foregroundStyle(.white)
+                .foregroundStyle(theme.overlayText)
 
             Text(title)
                 .font(type.h3)
                 .fontWeight(.semibold)
-                .foregroundStyle(.white)
+                .foregroundStyle(theme.overlayText)
 
             Text(message)
                 .font(type.body1)
-                .foregroundStyle(.white.opacity(0.8))
+                .foregroundStyle(theme.overlayTextSecondary)
 
             Spacer()
         }
@@ -45,5 +46,6 @@ struct InsightsEmptyState: View {
         message: "Your insights will appear here after journaling."
     )
     .background(Color.purple)
+    .useTheme()
     .useTypography()
 }

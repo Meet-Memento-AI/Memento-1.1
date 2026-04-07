@@ -17,9 +17,6 @@ struct ListeningPanel: View {
     private let panelHeight: CGFloat = 200
     private let cornerRadius: CGFloat = 24
     private let buttonSize: CGFloat = 40
-    private let lightPurple = Color(hex: "#E2D5F3")
-    private let purpleColor = Color(hex: "#6125B1")
-    private let purpleText = Color(hex: "#6125B2")
 
     var body: some View {
         VStack(spacing: 0) {
@@ -42,7 +39,7 @@ struct ListeningPanel: View {
             // Label
             Text("Listening")
                 .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(purpleText)
+                .foregroundStyle(theme.primary)
                 .padding(.bottom, 24)
         }
         .frame(height: panelHeight)
@@ -59,11 +56,11 @@ struct ListeningPanel: View {
         } label: {
             Image(systemName: "chevron.left")
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(purpleColor)
+                .foregroundStyle(theme.primary)
                 .frame(width: buttonSize, height: buttonSize)
                 .background(
                     Circle()
-                        .fill(lightPurple)
+                        .fill(PrimaryScale.primary100)
                 )
         }
         .buttonStyle(.plain)
@@ -84,7 +81,7 @@ struct ListeningPanel: View {
                 .frame(width: buttonSize, height: buttonSize)
                 .background(
                     Circle()
-                        .fill(purpleColor)
+                        .fill(theme.primary)
                 )
         }
         .buttonStyle(.plain)
