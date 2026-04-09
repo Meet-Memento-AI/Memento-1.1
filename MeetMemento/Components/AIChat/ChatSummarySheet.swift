@@ -15,6 +15,8 @@ public struct ChatSummarySheet: View {
     @Environment(\.typography) private var type
     @Environment(\.dismiss) private var dismiss
 
+    @State private var iconPulse = false
+
     public init(
         onSummarize: @escaping () -> Void,
         isSummarizing: Bool
@@ -29,65 +31,56 @@ public struct ChatSummarySheet: View {
             RoundedRectangle(cornerRadius: 2.5)
                 .fill(theme.mutedForeground.opacity(0.3))
                 .frame(width: 36, height: 5)
-                .padding(.top, 8)
-                .padding(.bottom, 24)
+                .padding(.top, Spacing.xs)
+                .padding(.bottom, Spacing.xl)
 
-            // Icon
-            Image(systemName: "doc.text.fill")
-                .font(.system(size: 48))
-                .foregroundStyle(theme.primary)
-                .padding(.bottom, 16)
+            // Icon with pulse animation
+            AISparkleIcon(size: 48)
+                .scaleEffect(isSummarizing ? 1.1 : (iconPulse ? 1.05 : 1.0))
+                .animation(
+                    .easeInOut(duration: 1.5).repeatForever(autoreverses: true),
+                    value: iconPulse
+                )
+                .padding(.bottom, Spacing.md)
+                .onAppear { iconPulse = true }
 
             // Title
-            Text("Save Chat as Entry")
+            Text("Summarize chat as an entry")
                 .font(type.h4)
                 .foregroundStyle(theme.foreground)
-                .padding(.bottom, 8)
+                .padding(.bottom, Spacing.xs)
 
             // Description
-            Text("Create a journal entry from this conversation. Memento will summarize the key insights and reflections.")
+            Text("Memento will summarize your key insights and reflections, and create a journal entry.")
                 .font(type.body1)
                 .foregroundStyle(theme.mutedForeground)
                 .multilineTextAlignment(.center)
                 .lineSpacing(type.bodyLineSpacing)
-                .padding(.horizontal, 32)
-                .padding(.bottom, 32)
+                .padding(.horizontal, Spacing.xxl)
+                .padding(.bottom, Spacing.xxl)
 
             // Primary Button
-            Button(action: onSummarize) {
-                HStack(spacing: 8) {
-                    if isSummarizing {
-                        ProgressView()
-                            .tint(.white)
-                        Text("Generating...")
-                    } else {
-                        Text("Summarize Chat")
-                    }
-                }
-                .font(type.body1Bold)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
-            }
-            .background(theme.primary)
-            .foregroundStyle(.white)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .padding(.horizontal, 24)
-            .disabled(isSummarizing)
-            .opacity(isSummarizing ? 0.7 : 1.0)
+            PrimaryButton(
+                title: isSummarizing ? "Generating..." : "Summarize Chat",
+                isLoading: isSummarizing,
+                action: onSummarize
+            )
+            .padding(.horizontal, Spacing.xl)
 
             // Cancel Button
-            Button("Cancel") {
+            SecondaryButton(title: "Cancel") {
                 dismiss()
             }
-            .font(type.body1)
-            .foregroundStyle(theme.mutedForeground)
-            .padding(.top, 16)
-            .padding(.bottom, 32)
+            .padding(.horizontal, Spacing.xl)
+            .padding(.top, Spacing.sm)
+            .padding(.bottom, Spacing.xxl)
             .disabled(isSummarizing)
         }
-        .background(theme.background.ignoresSafeArea())
-        .presentationDetents([.height(360)])
+        .background(theme.popover.ignoresSafeArea())
+        .shadow(Shadows.strong)
+        .presentationDetents([.height(400)])
         .presentationDragIndicator(.hidden)
+        .presentationCornerRadius(24)
         .interactiveDismissDisabled(isSummarizing)
     }
 }
