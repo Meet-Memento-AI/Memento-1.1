@@ -27,6 +27,8 @@ struct ChatInputField: View {
     var onDismiss: (() -> Void)?
     /// Called when the chat history button is tapped
     var onHistoryTap: (() -> Void)?
+    /// Called when narrate state changes (true = active, false = inactive)
+    var onNarrateStateChange: ((Bool) -> Void)?
     /// When false, input is disabled (e.g. carousel preview in WelcomeView)
     var isInteractive: Bool
     /// Whether there are existing chat sessions (shows history button when true)
@@ -53,10 +55,10 @@ struct ChatInputField: View {
     private let pillHeight: CGFloat = 48
     private let cornerRadius: CGFloat = 24
     private let expandedHeight: CGFloat = 128
-    private let listeningPanelHeight: CGFloat = 240
-    private let sendButtonSize: CGFloat = 32
+    private let listeningPanelHeight: CGFloat = 280
+    private let sendButtonSize: CGFloat = 36
     private let backButtonSize: CGFloat = 48
-    private let listeningButtonSize: CGFloat = 40
+    private let listeningButtonSize: CGFloat = 48
 
     // Note: Colors now use theme tokens for consistency
 
@@ -72,6 +74,7 @@ struct ChatInputField: View {
         onSend: @escaping () -> Void = {},
         onDismiss: (() -> Void)? = nil,
         onHistoryTap: (() -> Void)? = nil,
+        onNarrateStateChange: ((Bool) -> Void)? = nil,
         isInteractive: Bool = true,
         hasExistingChats: Bool = false,
         initialState: InputState = .defaultState
@@ -80,6 +83,7 @@ struct ChatInputField: View {
         self.onSend = onSend
         self.onDismiss = onDismiss
         self.onHistoryTap = onHistoryTap
+        self.onNarrateStateChange = onNarrateStateChange
         self.isInteractive = isInteractive
         self.hasExistingChats = hasExistingChats
         self.initialState = initialState
@@ -223,7 +227,7 @@ struct ChatInputField: View {
 
     private var historyIcon: some View {
         Image(systemName: "text.document")
-            .font(.system(size: 18, weight: .regular))
+            .font(.system(size: 18, weight: .bold))
             .foregroundStyle(theme.foreground)
     }
 
@@ -269,7 +273,7 @@ struct ChatInputField: View {
             // Send button
             Button(action: sendMessage) {
                 Image(systemName: "arrow.up")
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.system(size: 16, weight: .bold))
                     .foregroundColor(.white)
                     .frame(width: sendButtonSize, height: sendButtonSize)
                     .background(
@@ -283,7 +287,10 @@ struct ChatInputField: View {
             .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             .accessibilityLabel("Send message")
         }
-        .padding(16)
+        .padding(.top, 16)
+        .padding(.leading, 16)
+        .padding(.bottom, 12)
+        .padding(.trailing, 12)
         .frame(height: expandedHeight)
         .frame(maxWidth: .infinity)
         .background(
@@ -305,13 +312,13 @@ struct ChatInputField: View {
                 Button {
                     cancelListening()
                 } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 16, weight: .semibold))
+                    Image(systemName: "xmark")
+                        .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(theme.primary)
                         .frame(width: listeningButtonSize, height: listeningButtonSize)
                         .background(
                             Circle()
-                                .fill(PrimaryScale.primary100)
+                                .fill(PrimaryScale.primary50)
                         )
                         .contentShape(Circle())
                 }
@@ -327,12 +334,18 @@ struct ChatInputField: View {
                     confirmListening()
                 } label: {
                     Image(systemName: "checkmark")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.system(size: 16, weight: .bold))
                         .foregroundColor(.white)
                         .frame(width: listeningButtonSize, height: listeningButtonSize)
                         .background(
                             Circle()
-                                .fill(theme.primary)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [PrimaryScale.primary600, PrimaryScale.primary800],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
                         )
                         .contentShape(Circle())
                 }
@@ -452,6 +465,7 @@ struct ChatInputField: View {
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
             inputState = .narrateActive
         }
+        onNarrateStateChange?(true)
 
         // Start recording
         Task {
@@ -459,6 +473,7 @@ struct ChatInputField: View {
                 try await speechService.startRecording(ownerId: speechOwnerId)
             } catch let error as SpeechService.SpeechError {
                 // Fade out and return to default on error
+                onNarrateStateChange?(false)
                 withAnimation(.easeOut(duration: 0.15)) {
                     showListeningContent = false
                 }
@@ -473,6 +488,7 @@ struct ChatInputField: View {
                     showSTTError = true
                 }
             } catch {
+                onNarrateStateChange?(false)
                 withAnimation(.easeOut(duration: 0.15)) {
                     showListeningContent = false
                 }
@@ -488,6 +504,7 @@ struct ChatInputField: View {
 
     private func cancelListening() {
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        onNarrateStateChange?(false)
 
         // Fade out content first
         withAnimation(.easeOut(duration: 0.15)) {
@@ -509,6 +526,7 @@ struct ChatInputField: View {
 
     private func confirmListening() {
         UINotificationFeedbackGenerator().notificationOccurred(.success)
+        onNarrateStateChange?(false)
 
         // Fade out content first
         withAnimation(.easeOut(duration: 0.15)) {
@@ -547,6 +565,7 @@ struct ChatInputField: View {
         let trimmed = transcribedText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             // Fade out content first, then transition
+            onNarrateStateChange?(false)
             withAnimation(.easeOut(duration: 0.15)) {
                 showListeningContent = false
             }
@@ -571,6 +590,7 @@ struct ChatInputField: View {
         text = ""
 
         // Smooth transition back to default
+        onNarrateStateChange?(false)
         withAnimation(.easeOut(duration: 0.15)) {
             showListeningContent = false
         }

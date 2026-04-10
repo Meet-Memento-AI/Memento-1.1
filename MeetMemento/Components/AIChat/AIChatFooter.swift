@@ -14,6 +14,7 @@ struct AIChatFooter: View {
     var onSend: () -> Void
     var hasExistingChats: Bool
     var onHistoryTap: (() -> Void)?
+    var onNarrateStateChange: ((Bool) -> Void)?
 
     @Environment(\.theme) private var theme
 
@@ -22,13 +23,15 @@ struct AIChatFooter: View {
         isSending: Bool = false,
         onSend: @escaping () -> Void,
         hasExistingChats: Bool = false,
-        onHistoryTap: (() -> Void)? = nil
+        onHistoryTap: (() -> Void)? = nil,
+        onNarrateStateChange: ((Bool) -> Void)? = nil
     ) {
         self._inputText = inputText
         self.isSending = isSending
         self.onSend = onSend
         self.hasExistingChats = hasExistingChats
         self.onHistoryTap = onHistoryTap
+        self.onNarrateStateChange = onNarrateStateChange
     }
 
     var body: some View {
@@ -36,6 +39,7 @@ struct AIChatFooter: View {
             text: $inputText,
             onSend: onSend,
             onHistoryTap: onHistoryTap,
+            onNarrateStateChange: onNarrateStateChange,
             isInteractive: !isSending,
             hasExistingChats: hasExistingChats
         )

@@ -18,29 +18,91 @@ public struct AIChatView: View {
     /// ViewModel passed from parent to persist across tab switches
     @ObservedObject var viewModel: ChatViewModel
 
-    @State private var selectedCitations: [JournalCitation]? = nil
-    @State private var showCitationsSheet = false
+    private struct CitationsWrapper: Identifiable {
+        let id = UUID()
+        let citations: [JournalCitation]
+    }
+    @State private var selectedCitations: CitationsWrapper? = nil
     @State private var showChatHistorySheet = false
     @State private var scrollTask: Task<Void, Never>?
     @State private var scrollProxy: ScrollViewProxy?
+    @State private var isNarrateActive = false
     @StateObject private var keyboardObserver = KeyboardObserver()
+
+    // Summary flow state
+    @State private var showSummarySheet = false
+    @State private var summaryError: String?
+
+    private struct SummaryItem: Identifiable {
+        let id = UUID()
+        let title: String
+        let content: String
+    }
+    @State private var summaryItem: SummaryItem?
 
     @ObservedObject private var preferences = PreferencesService.shared
 
-    private static let defaultSuggestions: [String] = [
-        "Analyze my current mindset from my journal activity in the past week",
-        "Explore the themes we've talked about from my journals about my friendships.",
-        "Summarize my journal entries in the last month"
-    ]
+    // Suggestion prompts loaded from JSON with inline fallback
+    @State private var currentSuggestions: [String] = []
+    private static var allPrompts: [String] = {
+        if let url = Bundle.main.url(forResource: "AISuggestionPrompts", withExtension: "json"),
+           let data = try? Data(contentsOf: url),
+           let json = try? JSONDecoder().decode(PromptsFile.self, from: data) {
+            return json.prompts
+        }
+        // Fallback prompts if JSON not available
+        return [
+            "Analyze my current mindset from my journal activity in the past week",
+            "Explore the themes from my journals about my friendships",
+            "Summarize my journal entries in the last month",
+            "What emotions have I been experiencing most frequently?",
+            "Help me identify patterns in my daily routines",
+            "What are the recurring themes in my recent reflections?",
+            "How has my mood shifted over the past two weeks?",
+            "What am I most grateful for based on my entries?",
+            "Find moments of joy I've captured in my journals",
+            "What challenges have I overcome recently?",
+            "What goals have I been working toward?",
+            "How do my weekday entries differ from weekend ones?",
+            "What relationships seem most important to me right now?",
+            "Identify any sources of stress I've mentioned recently",
+            "What have I learned about myself this month?",
+            "What brings me peace according to my entries?",
+            "How do I handle difficult situations?",
+            "What creative ideas have I been exploring?",
+            "Suggest one intention for the week ahead based on my entries",
+            "What does happiness mean to me based on my reflections?"
+        ]
+    }()
+
+    private struct PromptsFile: Decodable {
+        let prompts: [String]
+    }
 
     init(viewModel: ChatViewModel, isEmbedded: Bool = false) {
         self.viewModel = viewModel
         self.isEmbedded = isEmbedded
     }
+
+    /// Rotate to show 3 random suggestions from the pool
+    private func rotateSuggestions() {
+        currentSuggestions = Array(Self.allPrompts.shuffled().prefix(3))
+    }
     
-    /// Height reserved for floating header when embedded
+    /// Height reserved for floating header when embedded (includes 32px gap below header)
     private var topContentInset: CGFloat {
-        isEmbedded ? 100 : 16
+        if isEmbedded {
+            let safeAreaTop = UIApplication.shared.connectedScenes
+                .compactMap { $0 as? UIWindowScene }
+                .first?
+                .windows
+                .first { $0.isKeyWindow }?
+                .safeAreaInsets.top ?? 0
+            // TopNavHeader positioned at safeAreaTop + 8 with height 44px
+            // Content starts 32px below header bottom
+            return safeAreaTop + 8 + 44 + 32  // = safeAreaTop + 84
+        }
+        return 16
     }
 
     public var body: some View {
@@ -59,8 +121,8 @@ public struct AIChatView: View {
                             Color.clear.frame(height: 88 + keyboardBottomPadding(geometry: geometry))
                         }
 
-                    // Blur overlay when keyboard is visible to focus attention on chat
-                    if keyboardObserver.isKeyboardVisible {
+                    // Blur overlay when keyboard is visible or narrate mode is active
+                    if keyboardObserver.isKeyboardVisible || isNarrateActive {
                         Rectangle()
                             .fill(.ultraThinMaterial)
                             .ignoresSafeArea()
@@ -81,6 +143,7 @@ public struct AIChatView: View {
                         floatingInputArea
                             .padding(.bottom, keyboardBottomPadding(geometry: geometry))
                     }
+
                 } else {
                     // AI Disabled State
                     aiDisabledView
@@ -99,10 +162,8 @@ public struct AIChatView: View {
             scrollTask?.cancel()
             scrollTask = nil
         }
-        .sheet(isPresented: $showCitationsSheet) {
-            if let citations = selectedCitations {
-                CitationsBottomSheet(citations: citations)
-            }
+        .sheet(item: $selectedCitations) { wrapper in
+            CitationsBottomSheet(citations: wrapper.citations)
         }
         .sheet(isPresented: $showChatHistorySheet) {
             ChatHistorySheet(
@@ -121,12 +182,49 @@ public struct AIChatView: View {
                 }
             )
         }
+        .sheet(isPresented: $showSummarySheet) {
+            ChatSummarySheet(
+                onSummarize: { handleSummarize() },
+                isSummarizing: viewModel.isSummarizing
+            )
+        }
+        .sheet(item: $summaryItem) { item in
+            AddEntryView(
+                state: .createWithContent(title: item.title, content: item.content),
+                onSave: { title, content in
+                    summaryItem = nil
+                }
+            )
+            .presentationDetents([.fraction(0.95)])
+            .presentationDragIndicator(.hidden)
+            .presentationCornerRadius(32)
+            .useTheme()
+            .useTypography()
+        }
+        .alert("Summary Failed", isPresented: .init(
+            get: { summaryError != nil },
+            set: { if !$0 { summaryError = nil } }
+        )) {
+            Button("OK") { summaryError = nil }
+        } message: {
+            Text(summaryError ?? "Unable to generate summary. Please try again.")
+        }
         .onAppear {
+            // Initialize suggestions on first appear
+            if currentSuggestions.isEmpty {
+                rotateSuggestions()
+            }
             Task {
                 await viewModel.fetchSessions()
                 if viewModel.userName == nil {
                     await viewModel.fetchUserName()
                 }
+            }
+        }
+        .onChange(of: viewModel.messages.isEmpty) { _, isEmpty in
+            // Rotate suggestions when returning to empty state (new chat)
+            if isEmpty {
+                rotateSuggestions()
             }
         }
         .alert("Something went wrong", isPresented: $viewModel.showingError) {
@@ -138,56 +236,33 @@ public struct AIChatView: View {
     }
     
     // MARK: - Messages Scroll View
-    
+
     private var messagesScrollView: some View {
         ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(spacing: 32) {
-                    if viewModel.messages.isEmpty && !viewModel.isLoading {
-                        VStack(alignment: .leading, spacing: 24) {
-                            // Extra top padding when embedded to account for floating header
-                            Spacer().frame(height: topContentInset + 20)
+            GeometryReader { geo in
+                if viewModel.messages.isEmpty && !viewModel.isLoading {
+                    // Empty state: vertically centered in visible area (between header and input)
+                    let inputAreaHeight: CGFloat = 120 // input field + bottom padding
+                    let visibleHeight = geo.size.height - topContentInset - inputAreaHeight
 
-                            // Memento icon — left 32/132 of logo SVG rendered at 44pt height
-                            Image("Memento-Logo")
-                                .resizable()
-                                .frame(width: 176, height: 44)
-                                .frame(width: 44, alignment: .leading)
-                                .clipped()
-                                .padding(.leading, 20)
-
-                            // Welcome message
-                            Text("Welcome \(viewModel.userName ?? "there"), let's dive deeper into your journal")
-                                .font(type.h3)
-                                .foregroundStyle(theme.foreground)
-                                .multilineTextAlignment(.leading)
-                                .padding(.horizontal, 20)
-
-                            // Suggestion cards — horizontal scroll
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 12) {
-                                    ForEach(Self.defaultSuggestions, id: \.self) { suggestion in
-                                        AISuggestionCard(suggestion: suggestion) {
-                                            viewModel.sendMessage(prompt: suggestion)
-                                        }
-                                    }
-                                }
-                                .padding(.leading, 20)
-                            }
-                            .frame(maxWidth: .infinity)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
-                        .id("empty")
-                    } else {
-                        VStack(alignment: .leading, spacing: 32) {
+                    VStack {
+                        emptyStateContent
+                    }
+                    .frame(width: geo.size.width, height: visibleHeight)
+                    .padding(.top, topContentInset)
+                    .id("empty")
+                } else {
+                    // Messages: scrollable content
+                    ScrollView {
+                        // Messages: start at top with padding
+                        LazyVStack(alignment: .leading, spacing: 32) {
                             ForEach(viewModel.messages) { message in
                                 ChatMessageBubble(
                                     message: message,
                                     animate: message.isNew,
                                     onCitationsTapped: {
                                         if let citations = message.citations, !citations.isEmpty {
-                                            selectedCitations = citations
-                                            showCitationsSheet = true
+                                            selectedCitations = CitationsWrapper(citations: citations)
                                         }
                                     },
                                     onRedo: message.isFromUser ? nil : { viewModel.regenerateResponse(for: message.id) }
@@ -204,10 +279,10 @@ public struct AIChatView: View {
                             }
                         }
                         .padding(16)
+                        .padding(.top, topContentInset)
+                        .padding(.bottom, 16)
                     }
                 }
-                .padding(.bottom, 16)
-                .padding(.top, topContentInset)
             }
             .onAppear { scrollProxy = proxy }
             .onChange(of: viewModel.messages.count) { oldCount, newCount in
@@ -248,7 +323,6 @@ public struct AIChatView: View {
          }
     }
 
-    // ... (skipping JournalReviewIndicator as it is unchanged)
 
     // MARK: - Floating Input Area
 
@@ -258,8 +332,54 @@ public struct AIChatView: View {
             isSending: viewModel.isLoading,
             onSend: { viewModel.sendMessage() },
             hasExistingChats: !viewModel.sessions.isEmpty,
-            onHistoryTap: { showChatHistorySheet = true }
+            onHistoryTap: { showChatHistorySheet = true },
+            onNarrateStateChange: { isActive in
+                withAnimation(.easeOut(duration: 0.25)) {
+                    isNarrateActive = isActive
+                }
+            }
         )
+    }
+
+    // MARK: - Empty State Content
+
+    private var emptyStateContent: some View {
+        VStack(spacing: 24) {
+            Spacer()
+
+            VStack(alignment: .leading, spacing: 24) {
+                // Memento icon — left 32/132 of logo SVG rendered at 44pt height
+                Image("Memento-Logo")
+                    .resizable()
+                    .frame(width: 176, height: 44)
+                    .frame(width: 44, alignment: .leading)
+                    .clipped()
+                    .padding(.leading, 20)
+
+                // Welcome message
+                Text("Welcome \(viewModel.userName ?? "there"), let's dive deeper into your journal")
+                    .font(type.h3)
+                    .foregroundStyle(theme.foreground)
+                    .multilineTextAlignment(.leading)
+                    .padding(.horizontal, 20)
+
+                // Suggestion cards — horizontal scroll
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(currentSuggestions, id: \.self) { suggestion in
+                            AISuggestionCard(suggestion: suggestion) {
+                                viewModel.sendMessage(prompt: suggestion)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Spacer()
+        }
     }
 
     // MARK: - AI Disabled View
@@ -335,6 +455,26 @@ public struct AIChatView: View {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 
+    private func handleSummarize() {
+        Task {
+            do {
+                let result = try await viewModel.generateChatSummary()
+                await MainActor.run {
+                    showSummarySheet = false
+                    // Small delay for sheet dismiss animation
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        summaryItem = SummaryItem(title: "Chat Reflection", content: result.content)
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    showSummarySheet = false
+                    summaryError = error.localizedDescription
+                }
+            }
+        }
+    }
+
     // MARK: - Chat History Actions
 
     private func loadSession(_ session: ChatSession) {
@@ -403,13 +543,13 @@ public struct AIChatView: View {
 extension View {
     @ViewBuilder
     func glassLikeEffect(in shape: some Shape = Capsule()) -> some View {
-        self.background(.regularMaterial, in: shape)
-            .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
+        self.background(.thinMaterial, in: shape)
+            .shadow(color: .black.opacity(0.08), radius: 4, x: 0, y: 2)
     }
-    
+
     @ViewBuilder
     func glassLikeEffect(cornerRadius: CGFloat) -> some View {
-        self.background(.regularMaterial, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
+        self.background(.thinMaterial, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .shadow(color: .black.opacity(0.08), radius: 4, x: 0, y: 2)
     }
 }
