@@ -21,6 +21,7 @@ import {
   buildGeminiContents,
   buildEffectiveQuery,
   buildPreviewExcerpt,
+  calculateDynamicThreshold,
   cleanParsedBody,
   diversifyEntriesForContext,
   extractBody,
@@ -63,18 +64,18 @@ const SYSTEM_PROMPT_FALLBACK = `You are Memento, a journaling companion. Help us
 const HISTORY_LIMIT = 6; // 3 conversation turns is sufficient with RAG context
 
 function chatMatchCount(): number {
-  const n = parseInt(Deno.env.get('CHAT_MATCH_COUNT') ?? '5', 10);
-  return Number.isFinite(n) && n > 0 ? Math.min(n, 20) : 5;
+  const n = parseInt(Deno.env.get('CHAT_MATCH_COUNT') ?? '10', 10);
+  return Number.isFinite(n) && n > 0 ? Math.min(n, 20) : 10;
 }
 
 function chatMatchThreshold(): number {
-  const n = parseFloat(Deno.env.get('CHAT_MATCH_THRESHOLD') ?? '0.35');
-  return Number.isFinite(n) && n > 0 && n < 1 ? n : 0.35;
+  const n = parseFloat(Deno.env.get('CHAT_MATCH_THRESHOLD') ?? '0.4');
+  return Number.isFinite(n) && n > 0 && n < 1 ? n : 0.4;
 }
 
 function chatContextMaxEntries(): number {
-  const n = parseInt(Deno.env.get('CHAT_CONTEXT_MAX_ENTRIES') ?? '5', 10);
-  return Number.isFinite(n) && n > 0 ? Math.min(n, 15) : 5;
+  const n = parseInt(Deno.env.get('CHAT_CONTEXT_MAX_ENTRIES') ?? '7', 10);
+  return Number.isFinite(n) && n > 0 ? Math.min(n, 15) : 7;
 }
 
 function chatMaxCitations(): number {
@@ -398,7 +399,36 @@ serve(async (req) => {
 
     let entries: MatchedEntry[] = [];
 
+    // Calculate dynamic threshold based on user feedback
+    let dynamicThreshold = chatMatchThreshold();
+    const twoWeeksAgo = new Date(Date.now() - 14 * 86400000).toISOString();
+
+    const { data: feedbackStats } = await supabase
+      .from('chat_feedback')
+      .select('feedback_type')
+      .eq('user_id', user.id)
+      .gte('created_at', twoWeeksAgo);
+
+    if (feedbackStats && feedbackStats.length > 0) {
+      const positiveCount = feedbackStats.filter(
+        (f: { feedback_type: string }) => f.feedback_type === 'positive'
+      ).length;
+      const negativeCount = feedbackStats.filter(
+        (f: { feedback_type: string }) => f.feedback_type === 'negative'
+      ).length;
+
+      dynamicThreshold = calculateDynamicThreshold(
+        chatMatchThreshold(),
+        positiveCount,
+        negativeCount
+      );
+
+      console.log(`📊 Feedback: ${positiveCount}/${positiveCount + negativeCount} positive, threshold adjusted to ${dynamicThreshold}`);
+    }
+
     if (!skipRetrieval) {
+      console.log(`🔍 RAG query: "${effectiveQuery.slice(0, 100)}..." (${effectiveQuery.length} chars)`);
+
       const embedMax = parseInt(Deno.env.get('CHAT_EMBED_MAX_CHARS') ?? '2000', 10);
       const embedText = effectiveQuery.slice(0, Number.isFinite(embedMax) ? embedMax : 2000);
       const queryEmbedding = await generateEmbedding(embedText, geminiApiKey);
@@ -409,7 +439,7 @@ serve(async (req) => {
         query_embedding: vectorLiteral,
         match_user_id: user.id,
         match_count: chatMatchCount(),
-        match_threshold: chatMatchThreshold(),
+        match_threshold: dynamicThreshold,
       });
 
       if (rpcError) {
@@ -418,9 +448,12 @@ serve(async (req) => {
 
       const raw = (matchedEntries ?? []) as MatchedEntry[];
       entries = diversifyEntriesForContext(raw, chatContextMaxEntries());
-      console.log(`📚 RAG: ${raw.length} raw matches → ${entries.length} after diversify (effectiveQuery ${effectiveQuery.length} chars)`);
+      console.log(`📚 RAG: ${raw.length} raw → ${entries.length} after diversify (threshold=${dynamicThreshold})`);
     } else {
-      console.log(`📝 Skipping journal retrieval (heuristic or short query; len=${effectiveQuery.length})`);
+      const lower = userMessage.trim().toLowerCase();
+      const reason = effectiveQuery.length < minQueryLen ? 'short_query' :
+        /^(thanks|ok|got it)/.test(lower) ? 'acknowledgement' : 'meta_question';
+      console.log(`📝 Skipping retrieval: query="${effectiveQuery.slice(0, 50)}" len=${effectiveQuery.length} reason=${reason}`);
     }
 
     // ============================================================
@@ -500,12 +533,13 @@ serve(async (req) => {
     // 10. PERSIST MESSAGES
     // ============================================================
 
-    // Store full JSON structure for assistant messages to preserve headings when loading history
+    // Store full JSON structure for assistant messages to preserve headings and sources when loading history
     const assistantContent = JSON.stringify({
       heading1: structuredReply.heading1,
       heading2: structuredReply.heading2,
       body: structuredReply.body,
       cited_entry_ids: structuredReply.cited_entry_ids,
+      sources: sources,  // Persist full sources for citation display in history
     });
 
     const { error: insertError } = await supabase.from('chat_messages').insert([

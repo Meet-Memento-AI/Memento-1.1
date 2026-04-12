@@ -84,14 +84,40 @@ export function extractGeminiResponseText(data: unknown): string {
 
 /**
  * Sanitizes response body to ensure users never see raw JSON.
+ * Falls back gracefully if body extraction fails.
  */
 export function sanitizeResponseBody(text: string): string {
   const trimmed = text.trim();
 
+  // If it doesn't look like JSON, return as-is
   if (!trimmed.startsWith('{')) {
     return text;
   }
 
+  // Try to parse as JSON first
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (typeof parsed.body === 'string' && parsed.body.trim()) {
+      return parsed.body.trim();
+    }
+    // Check other common fields
+    if (typeof parsed.response === 'string' && parsed.response.trim()) {
+      return parsed.response.trim();
+    }
+    if (typeof parsed.text === 'string' && parsed.text.trim()) {
+      return parsed.text.trim();
+    }
+    if (typeof parsed.message === 'string' && parsed.message.trim()) {
+      return parsed.message.trim();
+    }
+    if (typeof parsed.content === 'string' && parsed.content.trim()) {
+      return parsed.content.trim();
+    }
+  } catch {
+    // JSON parse failed, try regex patterns
+  }
+
+  // Regex fallback patterns
   const patterns = [
     /"body"\s*:\s*"((?:[^"\\]|\\.)*)"/,
     /"body"\s*:\s*'((?:[^'\\]|\\.)*)'/,
@@ -108,27 +134,58 @@ export function sanitizeResponseBody(text: string): string {
     }
   }
 
-  console.warn('sanitizeResponseBody: Could not extract body from JSON-like text');
-  return "I had trouble formulating a response. Could you try rephrasing your question?";
+  // Last resort: if it looks like JSON but we can't extract body,
+  // return the raw text minus the JSON wrapper (better than error message)
+  console.warn('sanitizeResponseBody: Could not extract body, returning cleaned text');
+
+  // Try to extract any meaningful text content
+  const textContent = trimmed
+    .replace(/^\{|\}$/g, '')  // Remove outer braces
+    .replace(/"[^"]+"\s*:\s*/g, '')  // Remove JSON keys
+    .replace(/[{}\[\]]/g, '')  // Remove remaining brackets
+    .replace(/,\s*$/g, '')  // Remove trailing commas
+    .replace(/\\n/g, '\n')
+    .replace(/\\"/g, '"')
+    .trim();
+
+  if (textContent.length > 10) {
+    return textContent;
+  }
+
+  return "I'm processing your request. Please try again.";
 }
 
 /**
  * Cleans parsed body by unwrapping nested JSON and sanitizing.
  */
 export function cleanParsedBody(parsed: { body?: unknown }): string {
+  // Handle non-string body types
   if (typeof parsed.body !== 'string') {
+    // If body is an object, try to extract text from it
+    if (parsed.body && typeof parsed.body === 'object') {
+      const bodyObj = parsed.body as Record<string, unknown>;
+      if (typeof bodyObj.text === 'string') return bodyObj.text;
+      if (typeof bodyObj.content === 'string') return bodyObj.content;
+      // Convert to string as last resort
+      return JSON.stringify(parsed.body);
+    }
     console.warn('cleanParsedBody: body is not a string:', typeof parsed.body);
-    return "I had trouble formulating a response. Please try again.";
+    return "I'm processing your request. Please try again.";
   }
 
   let bodyText: string = parsed.body;
 
+  // Unwrap nested JSON if present
   let attempts = 0;
   while (bodyText.trim().startsWith('{') && attempts < 3) {
     try {
       const nested = JSON.parse(bodyText);
       if (typeof nested.body === 'string' && nested.body.trim()) {
         bodyText = nested.body;
+      } else if (typeof nested.text === 'string' && nested.text.trim()) {
+        bodyText = nested.text;
+      } else if (typeof nested.content === 'string' && nested.content.trim()) {
+        bodyText = nested.content;
       } else {
         break;
       }
@@ -138,10 +195,12 @@ export function cleanParsedBody(parsed: { body?: unknown }): string {
     attempts++;
   }
 
+  // If body is empty, provide a graceful fallback
   if (!bodyText.trim()) {
-    return "I had trouble formulating a response. Please try again.";
+    return "I'm processing your request. Please try again.";
   }
 
+  // If still looks like JSON, try to sanitize it
   if (bodyText.trim().startsWith('{')) {
     return sanitizeResponseBody(bodyText);
   }
@@ -155,10 +214,10 @@ export function cleanParsedBody(parsed: { body?: unknown }): string {
 /** Condense recent turns for embedding / retrieval (current message not included). */
 export function condenseHistoryForRetrieval(
   history: ChatMessageRow[],
-  maxChars = 600,
+  maxChars = 1200,
 ): string {
   if (history.length === 0) return '';
-  const tail = history.slice(-6);
+  const tail = history.slice(-10);
   const parts: string[] = [];
   let used = 0;
   for (const m of tail) {
@@ -172,7 +231,7 @@ export function condenseHistoryForRetrieval(
       }
     }
     t = t.replace(/\s+/g, ' ').trim();
-    if (t.length > 220) t = t.slice(0, 220) + '…';
+    if (t.length > 400) t = t.slice(0, 400) + '...';
     const piece = `${m.role === 'user' ? 'User' : 'Assistant'}: ${t}`;
     if (used + piece.length > maxChars) break;
     parts.push(piece);
@@ -197,11 +256,17 @@ export function shouldSkipJournalRetrieval(
 ): boolean {
   const q = effectiveQuery.trim();
   if (q.length < minLen) return true;
+
   const lower = userMessage.trim().toLowerCase();
-  const ack = /^(thanks|thank you|thx|ty|ok+|okay|got it|cool|nice|great|perfect|sounds good)\.?$/i;
-  if (ack.test(lower)) return true;
-  const meta = /^(what can you do|who are you|help|hi|hello|hey)\.?$/i;
-  if (meta.test(lower) && lower.length < 40) return true;
+
+  // Only skip PURE acknowledgements (exact match, no additional content)
+  const pureAck = /^(thanks|thank you|thx|ty|ok|okay|got it|cool|nice|great|perfect|sounds good)\.?$/i;
+  if (pureAck.test(lower) && lower.length < 20) return true;
+
+  // Only skip pure meta questions (exact match)
+  const pureMeta = /^(what can you do\??|who are you\??|help)$/i;
+  if (pureMeta.test(lower)) return true;
+
   return false;
 }
 
@@ -213,7 +278,7 @@ export function diversifyEntriesForContext(
   if (entries.length <= max) return entries;
   const sorted = [...entries].sort((a, b) => b.similarity - a.similarity);
   const out: MatchedEntry[] = [];
-  const norm = (s: string) => s.slice(0, 160).toLowerCase().replace(/\s+/g, ' ');
+  const norm = (s: string) => s.slice(0, 200).toLowerCase().replace(/\s+/g, ' ');
   for (const e of sorted) {
     if (out.length >= max) break;
     const n = norm(e.content);
@@ -224,10 +289,11 @@ export function diversifyEntriesForContext(
       for (let i = 0; i < L; i++) {
         if (n[i] === m[i]) same++;
       }
-      return L > 20 && same / L > 0.88;
+      return L > 20 && same / L > 0.95;
     });
     if (!dup) out.push(e);
   }
+  // Fill remaining slots
   for (const e of sorted) {
     if (out.length >= max) break;
     if (!out.some((x) => x.id === e.id)) out.push(e);
@@ -311,4 +377,31 @@ export function extractBody(parsed: Record<string, unknown>): string | null {
   }
 
   return null;
+}
+
+/**
+ * Calculates a dynamic RAG threshold based on user feedback patterns.
+ * If user has been giving mostly negative feedback, lower the threshold
+ * to cast a wider net and retrieve more diverse entries.
+ */
+export function calculateDynamicThreshold(
+  baseThreshold: number,
+  positiveCount: number,
+  negativeCount: number,
+): number {
+  const total = positiveCount + negativeCount;
+
+  // Not enough data to make adjustments
+  if (total < 5) return baseThreshold;
+
+  const negativeRatio = negativeCount / total;
+
+  // High negative ratio (>40%): user is unhappy - cast wider net
+  if (negativeRatio > 0.4) {
+    return Math.max(0.25, baseThreshold - 0.1);
+  }
+
+  // High positive ratio (>70%): current behavior is working well
+  // Keep the base threshold
+  return baseThreshold;
 }

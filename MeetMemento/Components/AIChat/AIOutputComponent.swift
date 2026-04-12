@@ -37,8 +37,11 @@ public struct AIOutputContent: Hashable, Codable {
 public struct AIOutputComponent: View {
     let content: AIOutputContent
     var animate: Bool
+    var feedbackType: FeedbackType?
     var onCitationsTapped: (() -> Void)?
     var onRedo: (() -> Void)?
+    var onThumbsUp: (() -> Void)?
+    var onThumbsDown: (() -> Void)?
 
     @Environment(\.theme) private var theme
     @Environment(\.typography) private var type
@@ -67,13 +70,19 @@ public struct AIOutputComponent: View {
     public init(
         content: AIOutputContent,
         animate: Bool = true,
+        feedbackType: FeedbackType? = nil,
         onCitationsTapped: (() -> Void)? = nil,
-        onRedo: (() -> Void)? = nil
+        onRedo: (() -> Void)? = nil,
+        onThumbsUp: (() -> Void)? = nil,
+        onThumbsDown: (() -> Void)? = nil
     ) {
         self.content = content
         self.animate = animate
+        self.feedbackType = feedbackType
         self.onCitationsTapped = onCitationsTapped
         self.onRedo = onRedo
+        self.onThumbsUp = onThumbsUp
+        self.onThumbsDown = onThumbsDown
     }
 
     /// Full text for copy (heading1 + heading2 + body).
@@ -132,34 +141,38 @@ public struct AIOutputComponent: View {
                     UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 } label: {
                     Image(systemName: "doc.on.doc")
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.system(size: 14, weight: .bold))
                         .foregroundStyle(theme.mutedForeground)
                 }
                 .accessibilityLabel("Copy")
 
                 Button {
-                    print("Thumbs up")
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    onThumbsUp?()
                 } label: {
-                    Image(systemName: "hand.thumbsup")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(theme.mutedForeground)
+                    Image(systemName: feedbackType == .positive ? "hand.thumbsup.fill" : "hand.thumbsup")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(feedbackType == .positive ? theme.primary : theme.mutedForeground)
+                        .animation(.easeOut(duration: 0.2), value: feedbackType)
                 }
-                .accessibilityLabel("Thumbs up")
+                .accessibilityLabel(feedbackType == .positive ? "Remove thumbs up" : "Thumbs up")
 
                 Button {
-                    print("Thumbs down")
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    onThumbsDown?()
                 } label: {
-                    Image(systemName: "hand.thumbsdown")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(theme.mutedForeground)
+                    Image(systemName: feedbackType == .negative ? "hand.thumbsdown.fill" : "hand.thumbsdown")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(feedbackType == .negative ? theme.destructive : theme.mutedForeground)
+                        .animation(.easeOut(duration: 0.2), value: feedbackType)
                 }
-                .accessibilityLabel("Thumbs down")
+                .accessibilityLabel(feedbackType == .negative ? "Remove thumbs down" : "Thumbs down")
 
                 Button {
                     onRedo?()
                 } label: {
                     Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.system(size: 14, weight: .bold))
                         .foregroundStyle(theme.mutedForeground)
                 }
                 .accessibilityLabel("Regenerate")

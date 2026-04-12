@@ -52,7 +52,7 @@ struct SummaryMessage: Codable {
 }
 
 struct ChatSummaryResponse: Codable {
-    let title: String
+    let title: String?
     let content: String
 }
 
@@ -343,10 +343,104 @@ class ChatService {
         }
 
         #if DEBUG
-        print("✅ [ChatService] Summary generated: \"\(response.title.prefix(30))...\"")
+        print("✅ [ChatService] Summary generated (\(response.content.count) chars)")
         #endif
 
         return response
+    }
+
+    // MARK: - Chat Feedback
+
+    /// Submits feedback (thumbs up/down) for a message
+    /// Returns the resulting feedback type (nil if toggled off)
+    func submitFeedback(messageId: UUID, type: FeedbackType) async throws -> FeedbackType? {
+        #if DEBUG
+        print("👍 [ChatService] Submitting \(type.rawValue) feedback for message \(messageId.uuidString.prefix(8))...")
+        #endif
+
+        struct FeedbackRequest: Codable {
+            let messageId: String
+            let feedbackType: String
+        }
+
+        struct FeedbackResponse: Codable {
+            let success: Bool
+            let feedbackType: String?
+            let action: String
+        }
+
+        let request = FeedbackRequest(
+            messageId: messageId.uuidString,
+            feedbackType: type.rawValue
+        )
+
+        let response: FeedbackResponse = try await withRetry {
+            try await self.client.functions.invoke(
+                "chat-feedback",
+                options: FunctionInvokeOptions(body: request)
+            )
+        }
+
+        #if DEBUG
+        print("✅ [ChatService] Feedback \(response.action): \(response.feedbackType ?? "none")")
+        #endif
+
+        guard let feedbackTypeString = response.feedbackType else {
+            return nil
+        }
+        return FeedbackType(rawValue: feedbackTypeString)
+    }
+
+    /// Fetches existing feedback for a list of message IDs
+    /// Returns a dictionary mapping message ID to feedback type
+    func fetchFeedback(messageIds: [UUID]) async throws -> [UUID: FeedbackType] {
+        guard let userId = client.auth.currentUser?.id else {
+            #if DEBUG
+            print("⚠️ [ChatService] Cannot fetch feedback — no authenticated user")
+            #endif
+            return [:]
+        }
+
+        guard !messageIds.isEmpty else {
+            return [:]
+        }
+
+        #if DEBUG
+        print("📋 [ChatService] Fetching feedback for \(messageIds.count) messages...")
+        #endif
+
+        struct FeedbackRow: Codable {
+            let messageId: UUID
+            let feedbackType: String
+
+            enum CodingKeys: String, CodingKey {
+                case messageId = "message_id"
+                case feedbackType = "feedback_type"
+            }
+        }
+
+        let messageIdStrings = messageIds.map { $0.uuidString }
+
+        let response: [FeedbackRow] = try await client
+            .from("chat_feedback")
+            .select("message_id, feedback_type")
+            .eq("user_id", value: userId)
+            .in("message_id", values: messageIdStrings)
+            .execute()
+            .value
+
+        var result: [UUID: FeedbackType] = [:]
+        for row in response {
+            if let feedbackType = FeedbackType(rawValue: row.feedbackType) {
+                result[row.messageId] = feedbackType
+            }
+        }
+
+        #if DEBUG
+        print("✅ [ChatService] Fetched \(result.count) feedback entries")
+        #endif
+
+        return result
     }
 }
 

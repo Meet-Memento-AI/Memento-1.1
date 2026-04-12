@@ -38,6 +38,12 @@ public struct JournalCitation: Identifiable, Hashable, Codable {
     }
 }
 
+/// Feedback type for AI responses (thumbs up/down)
+public enum FeedbackType: String, Hashable, Codable {
+    case positive
+    case negative
+}
+
 /// Chat message model for AI Chat interface
 public struct ChatMessage: Identifiable, Hashable {
     public let id: UUID

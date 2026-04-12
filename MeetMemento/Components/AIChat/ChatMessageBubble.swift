@@ -10,8 +10,11 @@ import SwiftUI
 public struct ChatMessageBubble: View {
     let message: ChatMessage
     var animate: Bool
+    var feedbackType: FeedbackType?
     var onCitationsTapped: (() -> Void)?
     var onRedo: (() -> Void)?
+    var onThumbsUp: (() -> Void)?
+    var onThumbsDown: (() -> Void)?
 
     @Environment(\.theme) private var theme
     @Environment(\.typography) private var type
@@ -19,13 +22,19 @@ public struct ChatMessageBubble: View {
     public init(
         message: ChatMessage,
         animate: Bool = true,
+        feedbackType: FeedbackType? = nil,
         onCitationsTapped: (() -> Void)? = nil,
-        onRedo: (() -> Void)? = nil
+        onRedo: (() -> Void)? = nil,
+        onThumbsUp: (() -> Void)? = nil,
+        onThumbsDown: (() -> Void)? = nil
     ) {
         self.message = message
         self.animate = animate
+        self.feedbackType = feedbackType
         self.onCitationsTapped = onCitationsTapped
         self.onRedo = onRedo
+        self.onThumbsUp = onThumbsUp
+        self.onThumbsDown = onThumbsDown
     }
     
     public var body: some View {
@@ -63,8 +72,11 @@ public struct ChatMessageBubble: View {
             AIOutputComponent(
                 content: aiContent,
                 animate: animate,
+                feedbackType: feedbackType,
                 onCitationsTapped: onCitationsTapped,
-                onRedo: onRedo
+                onRedo: onRedo,
+                onThumbsUp: onThumbsUp,
+                onThumbsDown: onThumbsDown
             )
         } else {
             // AI messages: support markdown/rich text (fallback)

@@ -260,12 +260,19 @@ public struct AIChatView: View {
                                 ChatMessageBubble(
                                     message: message,
                                     animate: message.isNew,
+                                    feedbackType: viewModel.feedbackType(for: message.id),
                                     onCitationsTapped: {
                                         if let citations = message.citations, !citations.isEmpty {
                                             selectedCitations = CitationsWrapper(citations: citations)
                                         }
                                     },
-                                    onRedo: message.isFromUser ? nil : { viewModel.regenerateResponse(for: message.id) }
+                                    onRedo: message.isFromUser ? nil : { viewModel.regenerateResponse(for: message.id) },
+                                    onThumbsUp: message.isFromUser ? nil : {
+                                        viewModel.toggleThumbsUp(for: message.id)
+                                    },
+                                    onThumbsDown: message.isFromUser ? nil : {
+                                        viewModel.toggleThumbsDown(for: message.id)
+                                    }
                                 )
                                 .id(message.id)
                             }
@@ -286,19 +293,26 @@ public struct AIChatView: View {
             }
             .onAppear { scrollProxy = proxy }
             .onChange(of: viewModel.messages.count) { oldCount, newCount in
-                scrollToBottom(proxy: proxy, count: newCount)
+                // Only scroll when messages are added (not removed)
+                if newCount > oldCount, let lastMessage = viewModel.messages.last {
+                    // Scroll the new message to the top of the visible area
+                    scrollToUserMessage(proxy: proxy, messageId: lastMessage.id)
+                }
             }
             .onChange(of: viewModel.isLoading) { _, newValue in
                 if newValue {
-                     // Scroll to bottom when loading starts using Task
-                     scrollTask?.cancel()
-                     scrollTask = Task { @MainActor in
-                         try? await Task.sleep(nanoseconds: 100_000_000)
-                         guard !Task.isCancelled else { return }
-                         withAnimation {
-                             proxy.scrollTo("loading-state", anchor: .bottom)
-                         }
-                     }
+                    // Keep user's message visible at top, loading indicator appears below
+                    scrollTask?.cancel()
+                    scrollTask = Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 100_000_000)
+                        guard !Task.isCancelled else { return }
+                        // Scroll to the last user message (the one just sent)
+                        if let lastUserMessage = viewModel.messages.last(where: { $0.isFromUser }) {
+                            withAnimation(.easeOut(duration: 0.3)) {
+                                proxy.scrollTo(lastUserMessage.id, anchor: .top)
+                            }
+                        }
+                    }
                 }
             }
             .onChange(of: keyboardObserver.isKeyboardVisible) { _, isVisible in
@@ -315,12 +329,10 @@ public struct AIChatView: View {
         }
     }
     
-    private func scrollToBottom(proxy: ScrollViewProxy, count: Int) {
-         if let lastMessage = viewModel.messages.last {
-             withAnimation(.easeOut(duration: 0.3)) {
-                 proxy.scrollTo(lastMessage.id, anchor: .bottom)
-             }
-         }
+    private func scrollToUserMessage(proxy: ScrollViewProxy, messageId: UUID) {
+        withAnimation(.easeOut(duration: 0.3)) {
+            proxy.scrollTo(messageId, anchor: .top)
+        }
     }
 
 
@@ -441,9 +453,9 @@ public struct AIChatView: View {
             try? await Task.sleep(nanoseconds: 100_000_000)
             withAnimation(.easeOut(duration: 0.25)) {
                 if let lastMessage = viewModel.messages.last {
-                    proxy.scrollTo(lastMessage.id, anchor: .bottom)
+                    proxy.scrollTo(lastMessage.id, anchor: .top)
                 } else if viewModel.isLoading {
-                    proxy.scrollTo("loading-state", anchor: .bottom)
+                    proxy.scrollTo("loading-state", anchor: .top)
                 }
             }
         }
